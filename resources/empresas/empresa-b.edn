@@ -1,0 +1,52 @@
+;; Configuración de la Empresa B: control formal condicionado (visión, 6.3).
+
+{:extensiones
+ [{:extension/empresa :empresa-b
+   :extension/tipo    :producto
+   :extension/campo   [:producto.b/requiere-certificado :booleano]}]
+
+ :politicas
+ [;; Sobre $500.000 en insumos: solicitud, dos ofertas y aprobación de la oferta que se ordena.
+  {:politica/id         :empresa-b/compra-formal
+   :politica/version    3
+   :politica/rige-desde #inst "2026-12-01"
+   :politica/origen     :empresa
+   :politica/aplica-a   :compras/emitir-orden
+   :politica/aplica-con :inicio-del-caso
+   :politica/cuando     [:y [:= [:-> entrada/producto :producto/categoria] :insumos]
+                            [:> [:* entrada/cantidad entrada/precio-unitario] [:monto 500000 :CLP]]]
+   :politica/forma      :exige
+   :politica/cuerpo     [{:hecho :compras/solicitud}
+                         {:hecho :compras/oferta :minimo 2}
+                         {:hecho :compras/aprobacion
+                          :donde [:= hecho/oferta entrada/oferta]}]}
+
+  ;; Quien solicita no aprueba (escenario E3).
+  {:politica/id         :empresa-b/segregacion
+   :politica/version    1
+   :politica/rige-desde #inst "2026-12-01"
+   :politica/origen     :empresa
+   :politica/aplica-a   :compras/aprobar
+   :politica/aplica-con :fecha-del-paso
+   :politica/cuando     [:= actor [:-> caso/origen :hecho/actor]]
+   :politica/forma      :prohibe
+   :politica/cuerpo     {:razon "Quien solicita una compra no puede aprobarla"}}
+
+  {:politica/id         :empresa-b/quien-aprueba
+   :politica/version    1
+   :politica/rige-desde #inst "2026-12-01"
+   :politica/origen     :empresa
+   :politica/aplica-a   :compras/aprobar
+   :politica/forma      :permite
+   :politica/cuerpo     {:quien [:rol :jefe-compras]}}]
+
+ :caminos
+ [{:camino/id       :empresa-b/abastecer
+   :camino/version  2
+   :camino/objetivo :compras/emitir-orden
+   :camino/reglas   {:empresa-b/compra-formal 3}
+   :camino/pasos    [:compras/registrar-solicitud
+                     :compras/registrar-oferta
+                     :compras/aprobar
+                     :compras/emitir-orden]
+   :camino/estado   :activo}]}

@@ -1,0 +1,75 @@
+area;operacion;primitivos;verbos;politicas;tensiones
+Compras;Alta o cambio de proveedor;E;ce|me;EX|AZ;
+Compras;Registrar solicitud de compra;H|C;rh|ac;EX|DF|AZ;T2
+Compras;Solicitar cotizacion a proveedores;H;rh;EX|DF;
+Compras;Registrar oferta de proveedor;H|C;rh|ac;LI;T1
+Compras;Aprobar o rechazar compra;H;rh;EX|AZ|LI;
+Compras;Emitir orden de compra;H|C;rh|ac|rc;EX|PR|LI|DT|AU|AZ;T1
+Compras;Firmar contrato marco con proveedor;H|C;rh|ac;EX|AZ|LI;T14
+Compras;Liberar pedido contra contrato marco;H|C;rh|ac|rc;LI|AU;T14
+Compras;Registrar recepcion parcial o total;H|C;rh|rc;PR|LI|DI;
+Compras;Devolver mercaderia a proveedor;H|C;rh|rv|ac;EX|AZ;
+Compras;Registrar factura de proveedor (DTE recibido);H|C;rh|ac|rc;EX|LI|DT;T11
+Compras;Aceptar o reclamar DTE recibido;H;rh;DI|AU;T5|T11
+Compras;Cerrar orden con saldo pendiente;H|C;rh|ec;EX|AZ;
+Compras;Registrar nota de credito de proveedor;H|C;rh|rc;EX;
+Inventario;Alta de producto;E;ce|me;EX|DF|AZ;
+Inventario;Traspaso entre bodegas;H|C;rh|ac|rc;EX|LI|AZ;
+Inventario;Reservar stock para pedido o produccion;H|C;rh|ac|rc|ec;PR|LI|AU|DI;T2
+Inventario;Ajuste por toma de inventario;H;rh;EX|LI|AZ;
+Inventario;Consumo interno;H;rh;EX|DT;
+Inventario;Valorizar inventario (costo promedio o FIFO);H;rh;DT;T6
+Inventario;Consultar disponibilidad;-;-;DT;T6
+Inventario;Reposicion automatica por stock minimo;-;-;DI|AU|LI;T7
+Inventario;Bloquear lote o poner en cuarentena;E;me;PR|AZ;
+Ventas;Alta o cambio de cliente;E;ce|me;EX|AZ;
+Ventas;Asignar cupo de credito a cliente;E;me;LI|AZ;T3
+Ventas;Emitir cotizacion a cliente;H|C;rh|ac;DT|LI;T1
+Ventas;Registrar pedido de cliente;H|C;rh|ac;EX|PR|LI|DT|AZ;
+Ventas;Determinar precio y descuentos;-;-;DT|LI|DF;T10|T13
+Ventas;Bloquear y liberar pedido por credito;H;rh;PR|AZ;T3
+Ventas;Despachar con guia de despacho (DTE 52);H|C;rh|rc|ac;EX|DT;T11
+Ventas;Facturar (DTE 33/34);H|C;rh|rc|ac;EX|DT|AU;T11
+Ventas;Venta de mostrador con boleta (DTE 39);H;rh;DT|AU;T11|T12
+Ventas;Emitir nota de credito (DTE 61);H|C;rh|rv|rc;EX|AZ|DT;T11
+Ventas;Emitir nota de debito (DTE 56);H|C;rh|ac;EX|AZ|DT;T11
+Ventas;Recibir devolucion de cliente;H|C;rh|rv|ac;EX|AZ;
+Ventas;Recibir anticipo de cliente;H|C;rh|ac;DT;
+Ventas;Calcular comision de vendedor;H|C;rh|ac;DT|DI;
+Finanzas;Mantener plan de cuentas;E;ce|me|de;AZ;
+Finanzas;Registrar asiento manual;H;rh;EX|PR|AZ;
+Finanzas;Determinar cuentas contables automaticamente;-;-;DT;T10
+Finanzas;Registrar cobro;H|C;rh|rc;EX|DT;
+Finanzas;Aplicar un cobro o pago a varios documentos;H|C;rh|rc;DT|DF;T9
+Finanzas;Registrar pago a proveedor;H|C;rh|rc;EX|LI|AZ;
+Finanzas;Proponer pagos por vencimiento;-;-;DI|AU|DT;T7
+Finanzas;Conciliar cartola bancaria;H;rh;DT|AU;
+Finanzas;Ceder factura a factoring;H|C;rh|tc;EX|AZ;T8
+Finanzas;Castigar deuda incobrable;H|C;rh|ec;EX|AZ|DI;
+Finanzas;Reajustar por UF o diferencia de cambio;H;rh;DI|DT;T5
+Finanzas;Registrar provision de fin de mes con reverso;H;rh|rv;DI|AU;T5
+Finanzas;Cerrar periodo contable;H|E;rh|me;PR|AZ;T4
+Finanzas;Reabrir periodo contable;H|E;rh|me;AZ|EX;T4
+Finanzas;Preparar declaracion mensual (F29);H|C;rh|ac;DT|DI;T11
+Finanzas;Cuadrar registro de compras y ventas con SII;H;rh;DT|AU;T11
+Finanzas;Alta de activo fijo;E|H;ce|rh;EX|DT;
+Finanzas;Depreciar activos;H;rh;DT|DI|AU;T5
+Finanzas;Dar de baja activo fijo;H|E;rh|me;EX|AZ;
+Finanzas;Aprobar presupuesto por cuenta o centro;E|H;ce|rh;AZ|EX;T3
+Finanzas;Comprometer presupuesto con una orden;H|C;rh|ac|rc;LI|PR;T3
+Costos;Mantener centros de costo;E;ce|me|de;AZ;
+Costos;Imputar costo a centro;H;rh;DT|DF;
+Costos;Repartir costos periodicamente;H;rh;DT|DI;T5
+Costos;Calcular costo estandar de producto;H;rh;DT;T13
+Costos;Analizar rentabilidad;-;-;-;T6
+Produccion;Mantener lista de materiales;E;ce|me;AZ;T13
+Produccion;Mantener ruta de fabricacion;E;ce|me;AZ;T13
+Produccion;Planificar necesidades de materiales (MRP);-;-;DT|DI;T7
+Produccion;Liberar orden de fabricacion;H|C;rh|ac;EX|AZ;T2
+Produccion;Consumir componentes;H|C;rh|rc;DT|LI;
+Produccion;Notificar avance de operacion;H|C;rh|rc;EX;
+Produccion;Recibir producto terminado;H|C;rh|rc;DT;
+Produccion;Liquidar orden y variaciones;H|C;rh|ec;DT|AZ;
+Personal;Firmar contrato de trabajo;H|C;rh|ac;EX|AZ;T14
+Personal;Calcular liquidacion de sueldo;H|C;rh|ac;DT|DI;T5|T14
+Personal;Registrar vacaciones;H|C;rh|rc;EX|LI|AZ;

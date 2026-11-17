@@ -1,0 +1,127 @@
+# Natural Commerce — Registro de decisiones
+
+Actualizado: 2026-11-17. Origen: sesión de descubrimiento sobre "Visión funcional de SARA y MARCO".
+Estado: modelo cerrado; siguiente paso, construir el prototipo (Clojure + XTDB).
+Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.md`, `notacion-v0.md`.
+
+## 0. El modelo en una página
+
+1. **Estado.** Un ERP es entidades, hechos y compromisos. Los hechos no se modifican; los compromisos y saldos se guardan; todo lo calculado se guarda con la versión de lo que lo calculó; todo tiene historia y fecha de vigencia.
+2. **Operaciones.** Son transformaciones declaradas de ese estado, con diez verbos. Pertenecen a la plataforma.
+3. **Políticas.** Todo lo que una empresa decide son datos versionados, en un solo lenguaje de expresiones y en ocho formas. Lo legal es política que la empresa no edita.
+4. **MARCO.** Un motor determinista que evalúa operaciones contra políticas y estado: usa caminos guardados, deduce los que faltan y ejecuta solo con confirmación, o sin ella cuando una política lo exime.
+5. **SARA.** Traduce entre personas y MARCO. Es el único lugar con LLM y un cliente entre varios.
+
+**Principio de cierre (D46):** toda pregunta de diseño se responde ubicándola en una de tres capas.
+
+| Si la decisión pertenece a... | Es... | Quién la cambia |
+|---|---|---|
+| El significado de una operación | Contrato | El equipo, con un despliegue |
+| La forma de trabajar de una empresa | Política, con un valor por defecto | La empresa, con permisos |
+| La ley | Política legal | El equipo, por régimen |
+
+## 1. Decisiones de modelo
+
+| # | Decisión | Motivo o matiz |
+|---|---|---|
+| D1 | Las operaciones son código escrito por el equipo (mediante agentes de IA). Solo el equipo implementa capacidades; no hay terceros. | El canon de capacidades se deriva de lo que hacen ERP como SAP. Precisado por D52. |
+| D2 | Existe un canon común de entidades y operaciones. Cada empresa activa un subconjunto dentro de su plan. | |
+| D3 | Una empresa puede agregar campos propios a entidades del canon. No puede agregar capacidades nuevas; eso solo lo hace la plataforma. | |
+| D4 | Casi todo es política configurable por empresa, no invariante canónico (ej.: stock mínimo, sobreventa, recibir más de lo ordenado). | "Cualquier decisión es configuración del tenant." |
+| D5 | El único piso no configurable es el legal. Depende del régimen tributario de cada empresa y se entrega como paquetes de reglas que la empresa no edita. | Los escribe el equipo. Primero Chile; lo global sigue buenas prácticas (p. ej. Colegio de Contadores). |
+| D6 | Las políticas son reglas estructuradas sobre un catálogo de conceptos configurables. No se puede crear una política sobre algo que el ERP no conoce. | SARA ayuda a formularlas ofreciendo los conceptos posibles. |
+| D7 | Las condiciones son expresiones ricas: sumas, umbrales, fechas, relaciones entre personas y cálculos de otras capacidades (cupo de crédito, costo promedio). | Descarta planificadores PDDL tal cual y motores de políticas simples. |
+| D8 | Las reglas no se acoplan a los datos. Políticas versionadas, con fecha de vigencia. | |
+| D9 | Una regla nueva aplica desde su fecha de vigencia. Si un caso abierto la adopta o conserva la anterior lo declara cada política (D46). | Corregido: no es regla general. |
+| D10 | El contrato de una operación declara datos (entradas y salidas) y efectos de negocio. "Compatibles por contrato" significa ambas cosas. | |
+| D11 | Los contratos de operación viven junto al código (cambian con un despliegue). Políticas y caminos compuestos son datos (cambian en operación). | |
+| D12 | MARCO es determinista, no un LLM: planificación basada en acciones, precondiciones y efectos, inspirada en STRIPS/PDDL. "Lo más determinista que se pueda sin dejar de ser inteligente." | El LLM vive solo en SARA. |
+| D13 | MARCO trabaja con caminos definidos, guardados y versionados; recorre todos los caminos definidos y propone. | Modelo tipo "métodos + resolvedor" (cercano a HTN). |
+| D14 | Ante un objetivo sin camino guardado pero con piezas contratadas y compatibles: MARCO arma el plan, el usuario confirma, se ejecuta, y MARCO propone guardarlo como camino reutilizable sujeto a activación. Si una política lo exige, la combinación requiere aprobación previa. | Tener permiso sobre cada pieza no basta: hace falta confirmación, salvo que una política exima (D53). Si faltan capacidades contratadas, no hay nada que armar. |
+| D15 | No existe "el proceso" con principio y fin canónicos. Hay compromisos abiertos que las operaciones crean y extinguen; cuáles los extinguen depende de las capacidades contratadas (ej.: factorizar, pasar a incobrables). | |
+| D16 | La inmutabilidad es propiedad del tipo de dato según la obligación que lo rige (contabilidad: solo agregar y revertir). Lo demás puede ser flexible. | |
+| D17 | Cualquier dato debe poder verse como estaba en cualquier fecha, junto con la regla vigente entonces. | Considerado esencial en un ERP. |
+| D18 | Corregir el pasado (distinguir cuándo ocurrió de cuándo se registró) no es prioritario; lo normal es aceptar el error y registrar una operación correctiva. | Sí hace falta tiempo de validez para programar el futuro (H9). |
+| D19 | La atomicidad entre verificar una condición y ejecutar el efecto se decide por configuración de cada empresa (ej.: permitir o no sobreventa). | Corregido por D49. |
+| D20 | MARCO puede actuar por iniciativa propia (vencimientos, eventos), de forma configurable. | |
+| D21 | SARA es un cliente entre varios. No todo pasa por conversación; habrá interfaces más cómodas según el uso (caja, cargas masivas, integraciones). | La interfaz conversacional usa componentes de presentación ya hechos (menús, tablas, etc.). |
+| D22 | Una sola base de datos compartida, con separación por empresa (tenancy). | Punto de partida. |
+| D23 | Se aceptan ventanas de despliegue fuera de horario. Reemplazo en caliente es deseable, no obligatorio. | Permite un solo programa modular. |
+| D24 | Alcance inicial: una empresa que compra y vende. El diseño del core no debe cambiar al crecer. | Core más capacidades que se añaden. |
+| D25 | Se prefiere un núcleo uniforme (contrato, reglas y efectos en una sola notación) por sobre recibir hecho lo periférico. | Resultado de la prueba en papel. |
+| D26 | Clojure es el lenguaje candidato principal. | El contrato como dato se lee y mantiene mejor. |
+| D27 | El prototipo se construye en Clojure con XTDB v2. Respaldo: Clojure con Postgres. | Ver `prototipo-minimo.md`. |
+| D28 | Primitivos de estado: entidad, hecho y compromiso. Un documento de proveedor es un hecho. | El análisis de 74 operaciones no encontró la necesidad de un cuarto primitivo (H1). |
+| D29 | Los compromisos se guardan, no se deducen. El mismo efecto que registra un hecho reduce o extingue el compromiso, en la misma transacción. | Práctica estándar de ERP y contabilidad. Generalizado por D61. |
+| D30 | Los efectos se declaran con un vocabulario cerrado de nueve verbos. | H5 del análisis. Ampliado a diez por D56. |
+| D31 | Las políticas tienen ocho formas: exige, prohíbe, limita, sugiere, fija, exime, inicia y permite. | H6 agregó "fija". Nombres según D53. |
+| D32 | La resolución de conflictos entre políticas depende del contexto; no hay una regla general. | Precisado por D35. |
+| D33 | Hay dos formas de objetivo: operación a alcanzar (MARCO resuelve lo que falta y ejecuta) y estado deseado (MARCO busca caminos alternativos, pero solo propone). | Precisado por D51. |
+| D34 | Un presupuesto obliga a no sobrepasar el monto asignado, o a aceptar rangos configurables de incumplimiento. El pronóstico queda fuera del ERP clásico. | Entidad + concepto de consumo + política de límite. |
+| D35 | Los conflictos entre políticas se analizan al crear la regla, y el sistema ofrece herramientas para resolverlos, como asignar prioridad. | |
+| D36 | Si una empresa deja de contratar una capacidad de la que dependen sus políticas, se le presentan las opciones y ella decide. | |
+| D37 | Las reglas no están en el código: el código ejecuta reglas sin conocer lo que definen. Un cambio de código no puede invalidar una regla. | |
+| D38 | Los conceptos se definen como expresiones en la misma notación, versionados como las políticas. Solo los cálculos algorítmicos quedan en código, y cada decisión guarda el valor que usó de ellos. | |
+| D39 | Contratos marco, contratos de trabajo y arriendos son compromisos con calendario, no un primitivo aparte. | |
+| D40 | Las propuestas de MARCO se guardan solo si el usuario quiere. Un plan de pagos con fechas y cuotas es un compromiso con calendario y se guarda. | |
+| D41 | Los saldos se guardan, siempre vinculados a la versión de la política o regla con que se calcularon. | Generalizado por D48. |
+| D42 | Sin experto contable o SAP disponible por ahora. Lo tributario queda por verificar, y el paquete legal se construirá desde fuentes oficiales del SII. | |
+| D43 | El MRP es una capacidad que el cliente adquiere, no una función de MARCO. | Produce propuestas (D40). |
+| D44 | Una regla que afecta un saldo solo cambia al cierre del período, que legalmente sería anual. Desde ahí el saldo continúa con la regla nueva, sin recálculo hacia atrás. | Por verificar con fuentes del SII. Es una opción del catálogo de D50. |
+| D45 | Un contrato no se modifica durante su vigencia, salvo por vías legales: bilateral, unilateral u otras. Cada modificación es un hecho nuevo que reemplaza el calendario desde su fecha. | |
+| D46 | Principio de cierre: lo que pertenece al significado de una operación es contrato; lo que decide una empresa es política con valor por defecto; lo que impone la ley es política legal. | Ver sección 0. |
+| D47 | Si existe un camino guardado, se usa. Los pasos se deducen solo cuando no hay camino. | Precisado por D54. |
+| D48 | Todo lo calculado que se guarda lleva la versión de lo que lo calculó (concepto, política, regla o cálculo algorítmico). Saldos, valores fijados por una política y evidencia de un hecho son casos de esta regla. | Generaliza D38 (evidencia) y D41 (saldos). |
+| D49 | Verificar una condición y aplicar el efecto ocurren siempre en la misma transacción. Lo que la empresa configura es la regla (ej.: prohibir o permitir sobreventa), no la atomicidad. | Corrige D19. |
+| D50 | `:aplica-con` no tiene un conjunto cerrado de valores: cada política elige una opción de un catálogo de opciones de vigencia que entrega la plataforma (inicio del caso, fecha del paso, cierre del período, y las que se agreguen). | Generaliza P10. D44 pasa a ser una opción del catálogo, no una regla aparte. |
+| D51 | Ante un objetivo, MARCO ejecuta lo que puede ejecutar y propone lo que no. Ej.: "comprar 10" cuando se requiere una orden de compra con aprobación: MARCO propone crear la orden, no compra. | Precisa D33: el comportamiento no depende de la forma del objetivo. |
+| D52 | Una operación es su contrato. | Precisa D1: lo que el equipo escribe para agregar una operación es el contrato. |
+| D53 | Vocabulario preciso. **Permiso**: quién puede ejecutar una operación. **Aprobación**: un hecho que registra otra persona y que una política exige. **Confirmación**: el "sí" de quien ejecuta, justo antes de aplicar los efectos. **Activación**: el paso de un camino de borrador a activo. Las formas de política se renombran: autoriza → **permite**, automatiza → **exime** (de confirmación), dispara → **inicia**, determina → **fija**, valor por defecto → **sugiere**. "Inicia" no lleva modo: si MARCO ejecuta o propone lo decide D51. | La confirmación es el valor por defecto y solo "exime" la levanta; precisa D14, D31 y P7. |
+| D54 | Un camino guardado lleva las políticas, con su versión, a las que responde. MARCO lo usa solo si esas políticas aplican al caso y se cumplen; si no, lo rechaza y deduce los pasos. | Precisa D47: "si existe un camino aplicable, se usa". Es D48 aplicado al camino, que también es algo calculado. |
+| D55 | Expresiones y efectos son dos niveles. Una expresión solo lee. Un efecto es un verbo con expresiones como argumentos; una expresión nunca contiene un efecto. Los efectos tienen su propio condicional (`:cuando`). | Precisa D25: la notación sigue siendo una sola, pero una condición no puede modificar el estado. |
+| D56 | Los verbos son diez: se agrega `:modifica-compromiso`, que cambia los términos de un compromiso sin tocar su saldo (activarlo, ponerle vencimiento, reemplazar su calendario). Va siempre junto al hecho que lo justifica. Ningún compromiso cambia de estado sin una operación. | Amplía D30. Sin él no se podía declarar la activación de un compromiso latente ni el anexo de D45. |
+| D57 | Cada tipo de hecho se declara: sus datos, su régimen de inmutabilidad y los saldos que mueve. | Aplica D16 (el régimen es del tipo de dato, no de la operación) y completa D41. |
+| D58 | Un requisito es opcional cuando el contrato lo admite como entrada opcional y ninguna política lo exige ni lo prohíbe. No hace falta una forma de política para decirlo. | Da origen al estado "opcional" del criterio 4 de la visión. Es D46: lo que la operación admite es contrato; lo que la empresa exige es política. |
+| D59 | Vocabulario: **oferta** es lo que un proveedor entrega y lo obliga si se acepta (un compromiso latente). **Cotización** queda para lo que la empresa solicita a proveedores o emite a un cliente. | Amplía D53. La visión llama "cotización" a ambas cosas; el análisis ya las distinguía. |
+| D60 | El prototipo prueba la separación por empresa con un escenario propio (E9). La madurez operativa del almacén se evalúa con una revisión aparte, no con un escenario. E8 prueba el modelo y no decide el stack. | Hace verificable el criterio de salida de `prototipo-minimo.md`. |
+| D61 | Ningún compromiso se abre, modifica, reduce, extingue ni transfiere sin un hecho registrado en la misma operación. | Generaliza D29 y D56. Reservar stock y comprometer presupuesto también registran un hecho. |
+| D62 | Una operación puede registrar varios hechos en la misma transacción (ej.: venta de mostrador: boleta, entrega y cobro). Abre compromisos solo por lo que queda pendiente al terminar. | Resuelve T12 sin un primitivo nuevo. |
+| D63 | Los folios de documentos tributarios son un saldo: la autorización del SII lo aumenta y cada documento emitido lo consume. Una política legal "fija" el número de folio y otra impide emitir sin saldo. | Mismo patrón que presupuesto y cupo (H3). Por verificar con fuentes del SII (D42). |
+| D64 | El prototipo incluye "registrar factura de proveedor" como octava operación: un hecho simple que activa el pago pendiente de la orden. Lo tributario de la factura sigue fuera de alcance. | Sin ella el pago queda latente y E6 no tiene un compromiso activo que reducir. |
+
+## 2. Criterios para elegir stack
+
+- Sin restricciones previas de lenguaje ni infraestructura.
+- Menor escritura, mejor mantenimiento, idoneidad para el problema.
+- Todo el código lo escriben agentes de IA; la idoneidad pesa más que la popularidad del lenguaje.
+
+## 3. Candidatos de stack evaluados
+
+| Pieza | Elixir + Ash + Postgres | Clojure + XTDB | TypeScript + Postgres + motor duradero |
+|---|---|---|---|
+| Contrato de operación | Declarativo de fábrica; los efectos requieren extensión propia | Mapa de datos interpretado por código propio | Esquemas más generación propia |
+| Reglas por empresa | Capa propia | Capa propia; reglas como datos son nativas | Capa propia |
+| Historia de cualquier dato | Diseño propio | Viene resuelto | Diseño propio |
+| Esperas e iniciativa propia | Nativo más Oban | Hay que sumar un motor | Temporal, Restate o DBOS |
+| SARA | Acciones como herramientas; LiveView | Todo propio | Ecosistema más rico |
+
+## 4. Preguntas del borrador de notación, resueltas
+
+| # | Resolución |
+|---|---|
+| P1 | Resuelta al construir la etapa 1: operaciones como palabras clave y referencias como símbolos. |
+| P5, P6 | Técnicas. Se deciden al construir el prototipo (etapa 3). |
+| P2 | Bastan tres estados. "Vencido" se calcula; extinguir por vencimiento es una operación (D56). |
+| P3 | Las vías de modificación de un contrato son política legal. |
+| P4 | Precio de referencia por política (sugiere o fija); si no hay, SARA lo pide; se reevalúa al ejecutar. |
+| P7 | Confirmación humana por defecto; la política "exime" la levanta. |
+| P8 | MARCO actúa con identidad propia y los roles que la empresa le asigna (política "permite"). |
+| P9 | Tabla de combinación por forma como valor por defecto, modificable por la empresa. |
+| P10 | Cada política declara con qué versión se aplica a un caso abierto, eligiendo una opción de un catálogo abierto (D50). |
+| P11 | D47. Si una política nueva exige un paso que el camino no tiene, la empresa configura qué ocurre. |
+| P12 | Si la respuesta del resolvedor le basta a SARA para generar la interfaz se valida con el prototipo (etapa 6 y E6). El texto de la pregunta se reconstruyó el 2026-11-17. |
+
+## 5. Pendiente
+
+- Construir el prototipo (`prototipo-minimo.md`).
+- Paquete legal chileno inicial, desde fuentes del SII.

@@ -1,0 +1,154 @@
+;; Canon de la capacidad Compras para el prototipo mínimo.
+;;
+;; Etapa 1: estos datos prueban los esquemas y el validador. Los contratos se
+;; ejecutan recién en la etapa 3. Faltan registrar recepción y consultar estado
+;; (etapa 3) y registrar pago (etapa 5, escenario E6).
+
+{:entidades
+ [{:entidad/tipo   :producto
+   :entidad/campos {:producto/codigo    [:texto {:unico true}]
+                    :producto/nombre    :texto
+                    :producto/categoria [:ref :categoria]
+                    :producto/unidad    :unidad}
+   :entidad/extensible true}
+
+  {:entidad/tipo   :proveedor
+   :entidad/campos {:proveedor/nombre :texto}
+   :entidad/extensible true}
+
+  {:entidad/tipo   :persona
+   :entidad/campos {:persona/nombre :texto}
+   :entidad/extensible true}]
+
+ :tipos-hecho
+ [{:tipo-hecho/id      :compras/solicitud
+   :tipo-hecho/datos   [:map
+                        [:producto [:ref :producto]]
+                        [:cantidad :cantidad]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/oferta
+   :tipo-hecho/datos   [:map
+                        [:solicitud {:optional true} [:ref :compromiso]]
+                        [:proveedor [:ref :proveedor]]
+                        [:producto [:ref :producto]]
+                        [:cantidad :cantidad]
+                        [:precio-unitario :monto]
+                        [:vence :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/aprobacion
+   :tipo-hecho/datos   [:map
+                        [:solicitud [:ref :compromiso]]
+                        [:oferta {:optional true} [:ref :compromiso]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/orden
+   :tipo-hecho/datos   [:map
+                        [:proveedor [:ref :proveedor]]
+                        [:producto [:ref :producto]]
+                        [:cantidad :cantidad]
+                        [:precio-unitario :monto]
+                        [:solicitud {:optional true} [:ref :compromiso]]
+                        [:oferta {:optional true} [:ref :compromiso]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/factura
+   :tipo-hecho/datos   [:map
+                        [:orden [:ref :compras/orden]]
+                        [:monto :monto]
+                        [:vencimiento :fecha]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :contratos
+ [{:op/id        :compras/registrar-solicitud
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:producto [:ref :producto]]
+                  [:cantidad :cantidad]]
+   :op/salidas   {:solicitud necesidad/id}
+   :op/efectos
+   [[:registra-hecho :compras/solicitud entrada :como solicitud]
+    [:abre-compromiso {:tipo     :compras/necesidad
+                       :deudor   empresa
+                       :acreedor empresa
+                       :origen   solicitud/id
+                       :objeto   {:producto entrada/producto :cantidad entrada/cantidad}}
+     :como necesidad]]}
+
+  {:op/id        :compras/registrar-oferta
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:solicitud {:optional true} [:ref :compromiso]]
+                  [:proveedor [:ref :proveedor]]
+                  [:producto [:ref :producto]]
+                  [:cantidad :cantidad]
+                  [:precio-unitario :monto]
+                  [:vence :fecha]]
+   :op/salidas   {:oferta oferta/id}
+   :op/efectos
+   [[:registra-hecho :compras/oferta entrada :como recibida]
+    [:abre-compromiso {:tipo     :compras/oferta-vigente
+                       :deudor   entrada/proveedor
+                       :acreedor empresa
+                       :estado   :latente
+                       :vence    entrada/vence
+                       :origen   recibida/id
+                       :objeto   {:producto        entrada/producto
+                                  :cantidad        entrada/cantidad
+                                  :precio-unitario entrada/precio-unitario}}
+     :como oferta]]}
+
+  {:op/id        :compras/aprobar
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:solicitud [:ref :compromiso]]
+                  [:oferta {:optional true} [:ref :compromiso]]]
+   :op/salidas   {:aprobacion aprobacion/id}
+   :op/efectos
+   [[:registra-hecho :compras/aprobacion entrada :como aprobacion]]}
+
+  {:op/id        :compras/emitir-orden
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:proveedor [:ref :proveedor]]
+                  [:producto [:ref :producto]]
+                  [:cantidad :cantidad]
+                  [:precio-unitario :monto]
+                  [:solicitud {:optional true} [:ref :compromiso]]
+                  [:oferta {:optional true} [:ref :compromiso]]]
+   :op/salidas   {:orden orden/id}
+   :op/efectos
+   [[:registra-hecho :compras/orden entrada :como orden]
+    [:cuando entrada/solicitud
+     [:extingue-compromiso entrada/solicitud :cumplimiento]]
+    [:cuando entrada/oferta
+     [:extingue-compromiso entrada/oferta :cumplimiento]]
+    [:abre-compromiso {:tipo     :compras/recepcion-pendiente
+                       :deudor   entrada/proveedor
+                       :acreedor empresa
+                       :origen   orden/id
+                       :objeto   {:producto entrada/producto :cantidad entrada/cantidad}}]
+    [:abre-compromiso {:tipo     :compras/pago-contra-factura
+                       :deudor   empresa
+                       :acreedor entrada/proveedor
+                       :estado   :latente
+                       :origen   orden/id
+                       :objeto   {:monto [:* entrada/cantidad entrada/precio-unitario]}}]]}
+
+  {:op/id        :compras/registrar-factura
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:orden [:ref :compras/orden]]
+                  [:monto :monto]
+                  [:vencimiento :fecha]]
+   :op/salidas   {:factura factura/id}
+   :op/efectos
+   [[:registra-hecho :compras/factura entrada :como factura]
+    [:modifica-compromiso [:compromisos {:tipo :compras/pago-contra-factura :origen entrada/orden}]
+                          {:estado :activo :vence entrada/vencimiento}]]}]}
