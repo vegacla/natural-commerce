@@ -1,5 +1,6 @@
 (ns nc.marco-test
-  "Etapa 3: resolvedor y ejecutor. Escenarios E1 a E3 de prototipo-minimo.md.
+  "Etapas 3 y 4: resolvedor y ejecutor, vigencia e historia. Escenarios E1 a E5
+  de prototipo-minimo.md.
   Cada prueba usa su propia empresa sobre un mismo nodo XTDB."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [nc.almacen :as alm]
@@ -215,3 +216,92 @@
                (requisito res :permiso)))))
     (testing "nada quedó registrado"
       (is (empty? (alm/buscar *alm* (:empresa b) :hechos {:hecho/tipo :compras/aprobacion}))))))
+
+;; --- E4 --------------------------------------------------------------------------
+
+(def compra-formal-v3
+  (first (filter #(= :empresa-b/compra-formal (:politica/id %)) (:politicas empresa-b))))
+
+(defn- compra-formal-v4
+  "La versión siguiente: sin ofertas, y la aprobación ya no se ata a una oferta."
+  [rige-desde]
+  (assoc compra-formal-v3
+         :politica/version    4
+         :politica/rige-desde rige-desde
+         :politica/cuerpo     [{:hecho :compras/solicitud} {:hecho :compras/aprobacion}]))
+
+(defn- con-aplica-con [config opcion]
+  (update config :politicas
+          (partial mapv #(cond-> % (= :empresa-b/compra-formal (:politica/id %))
+                           (assoc :politica/aplica-con opcion)))))
+
+(deftest e4-version-siguiente-de-una-politica
+  (doseq [[opcion el-abierto-cambia?] [[:inicio-del-caso false] [:fecha-del-paso true]]]
+    (testing (str "compra-formal con :aplica-con " opcion)
+      (let [b         (empresa! (con-aplica-con empresa-b opcion))
+            abierto   (-> (ejecutar! b :persona/ana :compras/registrar-solicitud
+                                     {:producto :P-100 :cantidad [:cantidad 20 :un]})
+                          :salidas :solicitud)
+            _         (alm/publicar! *alm* (:empresa b) :politicas
+                                     (assoc (compra-formal-v4 (dias-desde-hoy 10)) :politica/aplica-con opcion))
+            en-11     (est/al b (dias-desde-hoy 11))
+            pide      (fn [estado entradas]
+                        (let [res (r/resolver estado :persona/ana :compras/emitir-orden entradas)]
+                          [(set (keep #(when (:politica %) (:id %)) (:requisitos res))) (:reglas res)]))
+            con-ofertas [#{:compras/solicitud :compras/oferta :compras/aprobacion} {:empresa-b/compra-formal 3}]
+            sin-ofertas [#{:compras/solicitud :compras/aprobacion} {:empresa-b/compra-formal 4}]]
+        (testing "antes de su fecha de vigencia, un caso nuevo sigue pidiendo ofertas"
+          (is (= con-ofertas (pide b orden-20))))
+        (testing "desde su fecha, un caso nuevo no pide ofertas"
+          (is (= sin-ofertas (pide en-11 orden-20))))
+        (testing "el caso abierto hace lo que declara la política (D9, D72)"
+          (is (= (if el-abierto-cambia? sin-ofertas con-ofertas)
+                 (pide en-11 (assoc orden-20 :solicitud abierto)))))
+        (testing "en otra fecha solo se consulta (D18)"
+          (is (thrown-with-msg? clojure.lang.ExceptionInfo #"solo se consulta"
+                                (ejecutar! en-11 :persona/ana :compras/registrar-solicitud
+                                           {:producto :P-100 :cantidad [:cantidad 5 :un]}))))))))
+
+;; --- E5 --------------------------------------------------------------------------
+
+(defn- compra-formal!
+  "Un caso completo de la Empresa B hasta la orden. Devuelve la solicitud, la
+  orden y el instante en que se registró la orden."
+  [b]
+  (let [solicitud (-> (ejecutar! b :persona/ana :compras/registrar-solicitud
+                                 {:producto :P-100 :cantidad [:cantidad 20 :un]})
+                      :salidas :solicitud)
+        oferta    (fn [proveedor]
+                    (-> (ejecutar! b :persona/ana :compras/registrar-oferta
+                                   {:solicitud solicitud :proveedor proveedor :producto :P-100
+                                    :cantidad [:cantidad 20 :un] :precio-unitario [:monto 30000 :CLP]
+                                    :vence (dias-desde-hoy 15)})
+                        :salidas :oferta))
+        _         (oferta :proveedor/acme)
+        elegida   (oferta :proveedor/beta)
+        _         (ejecutar! b :persona/luis :compras/aprobar {:solicitud solicitud :oferta elegida})
+        orden     (ejecutar! b :persona/ana :compras/emitir-orden
+                             (assoc orden-20 :proveedor :proveedor/beta :solicitud solicitud :oferta elegida))]
+    {:solicitud solicitud :orden (get-in orden [:salidas :orden]) :registro (:registro orden)}))
+
+(deftest e5-consulta-en-fecha-pasada
+  (let [b (empresa! empresa-b)
+        {:keys [orden registro]} (compra-formal! b)
+        _ (ejecutar! b :persona/ana :compras/registrar-recepcion
+                     {:orden orden :producto :P-100 :bodega :bodega/central :cantidad [:cantidad 12 :un]})
+        _ (alm/publicar! *alm* (:empresa b) :politicas (compra-formal-v4 (Date.)))
+        al-emitir (est/al b registro)
+        consulta  #(:salidas (ej/ejecutar! % :persona/ana :compras/consultar-estado {:orden orden} {}))]
+    (testing "al emitir la orden faltaba recibir todo; hoy faltan 8 (D17)"
+      (is (= [:cantidad 20 :un] (:por-recibir (consulta al-emitir))))
+      (is (= [:cantidad 8 :un] (:por-recibir (consulta b)))))
+    (testing "la recepción no existía al emitir la orden"
+      (is (not-any? #{:compras/recepcion} (map :hecho/tipo (:hechos (consulta al-emitir)))))
+      (is (some #{:compras/recepcion} (map :hecho/tipo (:hechos (consulta b))))))
+    (testing "la regla con que se abrió el caso queda en él"
+      (is (= {:empresa-b/compra-formal 3} (:reglas (consulta al-emitir)) (:reglas (consulta b)))))
+    (testing "la regla vigente en ese momento era la versión 3; hoy rige la 4"
+      (is (= {:empresa-b/compra-formal 3}
+             (:reglas (r/resolver al-emitir :persona/ana :compras/emitir-orden orden-20))))
+      (is (= {:empresa-b/compra-formal 4}
+             (:reglas (r/resolver b :persona/ana :compras/emitir-orden orden-20)))))))

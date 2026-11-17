@@ -1,7 +1,7 @@
 # Natural Commerce — Registro de decisiones
 
 Actualizado: 2026-11-17. Origen: sesión de descubrimiento sobre "Visión funcional de SARA y MARCO".
-Estado: modelo cerrado; prototipo en construcción (Clojure + XTDB), etapas 1 a 3 hechas.
+Estado: modelo cerrado; prototipo en construcción (Clojure + XTDB), etapas 1 a 4 hechas.
 Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.md`, `notacion-v0.md`.
 
 ## 0. El modelo en una página
@@ -32,7 +32,7 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D6 | Las políticas son reglas estructuradas sobre un catálogo de conceptos configurables. No se puede crear una política sobre algo que el ERP no conoce. | SARA ayuda a formularlas ofreciendo los conceptos posibles. |
 | D7 | Las condiciones son expresiones ricas: sumas, umbrales, fechas, relaciones entre personas y cálculos de otras capacidades (cupo de crédito, costo promedio). | Descarta planificadores PDDL tal cual y motores de políticas simples. |
 | D8 | Las reglas no se acoplan a los datos. Políticas versionadas, con fecha de vigencia. | |
-| D9 | Una regla nueva aplica desde su fecha de vigencia. Si un caso abierto la adopta o conserva la anterior lo declara cada política (D46). | Corregido: no es regla general. |
+| D9 | Una regla nueva aplica desde su fecha de vigencia. Si un caso abierto la adopta o conserva la anterior lo declara cada política (D46). | Corregido: no es regla general. Precisado por D72. |
 | D10 | El contrato de una operación declara datos (entradas y salidas) y efectos de negocio. "Compatibles por contrato" significa ambas cosas. | |
 | D11 | Los contratos de operación viven junto al código (cambian con un despliegue). Políticas y caminos compuestos son datos (cambian en operación). | |
 | D12 | MARCO es determinista, no un LLM: planificación basada en acciones, precondiciones y efectos, inspirada en STRIPS/PDDL. "Lo más determinista que se pueda sin dejar de ser inteligente." | El LLM vive solo en SARA. |
@@ -40,7 +40,7 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D14 | Ante un objetivo sin camino guardado pero con piezas contratadas y compatibles: MARCO arma el plan, el usuario confirma, se ejecuta, y MARCO propone guardarlo como camino reutilizable sujeto a activación. Si una política lo exige, la combinación requiere aprobación previa. | Tener permiso sobre cada pieza no basta: hace falta confirmación, salvo que una política exima (D53). Si faltan capacidades contratadas, no hay nada que armar. |
 | D15 | No existe "el proceso" con principio y fin canónicos. Hay compromisos abiertos que las operaciones crean y extinguen; cuáles los extinguen depende de las capacidades contratadas (ej.: factorizar, pasar a incobrables). | Cómo se reconoce el caso: D68. |
 | D16 | La inmutabilidad es propiedad del tipo de dato según la obligación que lo rige (contabilidad: solo agregar y revertir). Lo demás puede ser flexible. | |
-| D17 | Cualquier dato debe poder verse como estaba en cualquier fecha, junto con la regla vigente entonces. | Considerado esencial en un ERP. |
+| D17 | Cualquier dato debe poder verse como estaba en cualquier fecha, junto con la regla vigente entonces. | Considerado esencial en un ERP. Cómo lo hace MARCO: D73. |
 | D18 | Corregir el pasado (distinguir cuándo ocurrió de cuándo se registró) no es prioritario; lo normal es aceptar el error y registrar una operación correctiva. | Sí hace falta tiempo de validez para programar el futuro (H9). |
 | D19 | La atomicidad entre verificar una condición y ejecutar el efecto se decide por configuración de cada empresa (ej.: permitir o no sobreventa). | Corregido por D49. |
 | D20 | MARCO puede actuar por iniciativa propia (vencimientos, eventos), de forma configurable. | |
@@ -95,6 +95,8 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D69 | El saldo de un compromiso son, por defecto, los montos y cantidades de su objeto; el contrato puede declararlo con `:saldo`. Si `:reduce-compromiso` lo deja en cero o menos, el compromiso queda extinguido por cumplimiento en la misma operación. Si puede quedar bajo cero (recibir más de lo ordenado) lo decide una política (D4, E7). | Es el significado del verbo, por lo tanto contrato (D46). |
 | D70 | Una política sin `:aplica-con` se aplica con la versión vigente en cada paso (`:fecha-del-paso`). | Valor por defecto del catálogo de D50. |
 | D71 | Un requisito de una política "exige" dice con qué operación se cumple (`:via`) y, si esa operación tiene una salida que la operación objetivo recibe como entrada, cuál es esa entrada (`:entrega`). Una entrada así deja de ser opcional. | Aplica D10: la salida de una operación es entrada de otra. Es lo que SARA necesita para encadenar pasos (P12). |
+| D72 | Cuando una política tiene una versión nueva, la versión vigente en el paso declara si un caso abierto la adopta (`:fecha-del-paso`) o conserva la anotada al abrir el caso (`:inicio-del-caso`). | Precisa D9: decide la versión nueva, porque es la que sabe si su cambio debe alcanzar a los casos abiertos. |
+| D73 | MARCO puede mirar una empresa en cualquier fecha. En el pasado ve lo que regía entonces, según lo que se sabía entonces; en el futuro, lo que regirá, según lo que se sabe hoy. Mirando en otra fecha consulta y resuelve, pero no ejecuta. | Aplica D17 a MARCO entero, no solo a la lectura de datos. No ejecutar en otra fecha es D18. |
 
 ## 2. Criterios para elegir stack
 

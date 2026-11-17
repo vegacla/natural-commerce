@@ -12,8 +12,7 @@
             [malli.error :as me]
             [nc.esquema :as esq]
             [nc.estado :as est]
-            [nc.expresion :as e])
-  (:import (java.util Date)))
+            [nc.expresion :as e]))
 
 (defn- dato [sym] (keyword (namespace sym) (name sym)))
 
@@ -162,7 +161,7 @@
                      (e/error! :operacion-desconocida (str "No existe la operación " op) {:op op}))
         {:keys [validas requisitos opcionales]} (revisar-entradas estado contrato entradas)
         caso     (est/caso-de estado contrato validas)
-        refs     (cond-> {'entrada validas 'actor actor 'empresa (:empresa estado) 'ahora (Date.)}
+        refs     (cond-> {'entrada validas 'actor actor 'empresa (:empresa estado) 'ahora (est/ahora estado)}
                    caso (assoc 'caso caso))
         ctx      (est/contexto estado refs)
         ps       (est/politicas estado op caso)

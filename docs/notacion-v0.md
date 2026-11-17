@@ -22,7 +22,7 @@ Cada dato tiene dos tiempos:
 - **Registro**: cuándo lo supo el sistema. Lo pone la base de datos y no se edita.
 - **Validez**: desde cuándo rige. Por defecto coincide con el registro. Se distingue cuando algo se carga hoy para regir más adelante: una lista de precios, una política nueva, un anexo de contrato (H9 del análisis).
 
-Ver cualquier dato en cualquier fecha (D17) es consultar ambos tiempos en ese instante. XTDB los entrega de fábrica.
+Ver cualquier dato en cualquier fecha (D17) es consultar ambos tiempos en ese instante. XTDB los entrega de fábrica. MARCO entero puede mirar una empresa en otra fecha: consulta y resuelve como entonces, pero no ejecuta (D73).
 
 ## 2. Primitivos
 
@@ -396,7 +396,7 @@ Al guardar una política, el validador busca choques con las vigentes (D35): dos
 | `:fecha-del-paso` | La vigente en cada paso (típica de lo tributario) |
 | `:cierre-del-periodo` | La vigente al último cierre; un cambio rige desde el cierre siguiente (D44) |
 
-Las legales traen la opción fijada por el equipo. Una política sin `:aplica-con` usa `:fecha-del-paso` (D70).
+Las legales traen la opción fijada por el equipo. Una política sin `:aplica-con` usa `:fecha-del-paso` (D70). Cuando hay una versión nueva, lo que ella declara decide si el caso abierto la adopta (D72).
 
 ## 7. Objetivos, caminos y resolvedor
 

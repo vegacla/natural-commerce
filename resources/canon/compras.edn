@@ -191,5 +191,6 @@
                   [:solicitud {:optional true} [:ref :compromiso]]]
    :op/salidas   {:hechos      [:hechos {:caso caso/id}]
                   :compromisos [:compromisos {:raiz caso/id}]
+                  :reglas      caso/reglas
                   :por-recibir [:suma [:-> cada :compromiso/saldo :cantidad]
                                       [:compromisos {:raiz caso/id :tipo :compras/recepcion-pendiente}]]}}]}

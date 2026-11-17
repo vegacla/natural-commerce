@@ -191,6 +191,9 @@
       (not efecto?)
       {:estado :consultado :salidas (salidas estado contrato refs)}
 
+      (:al estado)
+      (e/error! :solo-lectura "En otra fecha solo se consulta: el pasado no se corrige (D18)" {:op op})
+
       (and (not confirmado) (= :requerida (:confirmacion resolucion)))
       (assoc resolucion :estado :por-confirmar)
 

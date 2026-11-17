@@ -5,14 +5,31 @@
 
   Una operación en curso todavía no escribe nada: lo que ya produjo va en
   `pendientes` ({:hechos {id doc} :compromisos {id doc}}), y las lecturas lo ven
-  por encima del almacén."
+  por encima del almacén.
+
+  La vista mira la empresa hoy, o en otra fecha con `al` (D17)."
   (:require [nc.almacen :as alm]
-            [nc.esquema :as esq]))
+            [nc.esquema :as esq])
+  (:import (java.time Instant)
+           (java.util Date)))
 
 (defn abrir
   "Lo que MARCO necesita para actuar en una empresa."
   [almacen catalogo empresa]
   {:almacen almacen :catalogo catalogo :empresa empresa})
+
+(defn al
+  "La misma vista en otro instante. En el pasado se ve lo que regía entonces
+  según lo que se sabía entonces; en el futuro, lo que regirá según lo que se
+  sabe hoy. Una vista en otra fecha solo lee (D18, D73)."
+  [estado instante]
+  (let [i (if (instance? Date instante) (.toInstant ^Date instante) instante)]
+    (assoc estado :al i :consulta (if (.isAfter ^Instant i (Instant/now)) {:validez i} {:al i}))))
+
+(defn ahora
+  "El instante en que se evalúa: el de la vista, o el reloj."
+  [estado]
+  (if-let [i (:al estado)] (Date/from i) (Date.)))
 
 ;; --- Lectura -------------------------------------------------------------------
 
@@ -20,28 +37,28 @@
   "Un documento por su identificador: hecho o compromiso si es un uuid, entidad
   si no. Nil si no existe en la empresa."
   ([estado id] (leer estado {} id))
-  ([{:keys [almacen empresa]} pendientes id]
+  ([{:keys [almacen empresa consulta]} pendientes id]
    (if (uuid? id)
      (or (get-in pendientes [:hechos id])
          (get-in pendientes [:compromisos id])
-         (alm/leer almacen empresa :hechos id)
-         (alm/leer almacen empresa :compromisos id))
-     (alm/leer almacen empresa :entidades id))))
+         (alm/leer almacen empresa :hechos id consulta)
+         (alm/leer almacen empresa :compromisos id consulta))
+     (alm/leer almacen empresa :entidades id consulta))))
 
 (defn- coincide? [doc filtro] (every? (fn [[k x]] (= x (get doc k))) filtro))
 
 (defn- buscar-con
   "Documentos que coinciden con un filtro de claves simples ({:tipo t :caso c}),
   con lo pendiente de la operación en lugar de su versión guardada."
-  [{:keys [almacen empresa]} pendientes tabla prefijo filtro]
+  [{:keys [almacen empresa consulta]} pendientes tabla prefijo filtro]
   (let [filtro (update-keys filtro #(keyword prefijo (name %)))
         id     (keyword prefijo "id")]
     (into (filterv #(coincide? % filtro) (vals pendientes))
           (remove #(contains? pendientes (id %)))
-          (alm/buscar almacen empresa tabla filtro))))
+          (alm/buscar almacen empresa tabla filtro consulta))))
 
-(defn- con-rol [{:keys [almacen empresa]} rol]
-  (->> (alm/buscar almacen empresa :entidades {:entidad/tipo :persona})
+(defn- con-rol [{:keys [almacen empresa consulta]} rol]
+  (->> (alm/buscar almacen empresa :entidades {:entidad/tipo :persona} consulta)
        (filter #(contains? (set (:persona/roles %)) rol))
        (mapv :entidad/id)))
 
@@ -76,9 +93,9 @@
 ;; --- Políticas -------------------------------------------------------------------
 
 (defn vigentes
-  "Las políticas de la empresa en la versión que rige hoy."
-  [{:keys [almacen empresa]}]
-  (alm/buscar almacen empresa :politicas {}))
+  "Las políticas de la empresa en la versión que rige en el instante de la vista."
+  [{:keys [almacen empresa consulta]}]
+  (alm/buscar almacen empresa :politicas {} consulta))
 
 (defn- version [{:keys [almacen empresa]} id v]
   (some #(when (= v (:politica/version %)) %) (alm/historia almacen empresa :politicas id)))
@@ -89,7 +106,8 @@
 
 (defn politicas
   "Las políticas que rigen `op` en un caso, cada una en la versión que elige su
-  `:aplica-con` (D50). Sin `:aplica-con`, la del día del paso (D70)."
+  `:aplica-con` (D50). Sin `:aplica-con`, la del día del paso (D70). Lo que
+  declara la versión vigente decide si el caso abierto la adopta (D9, D72)."
   [estado op caso]
   (let [del-caso (:compromiso/reglas caso)]
     (keep (fn [{:politica/keys [id aplica-con] :as p}]

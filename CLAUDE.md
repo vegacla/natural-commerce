@@ -6,7 +6,7 @@ Idioma del proyecto: español (documentos, nombres de dominio, conversación).
 
 ## Estado
 
-El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 3 hechas (E1 a E3); sigue la etapa 4 (E4 y E5).
+El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 4 hechas (E1 a E5); sigue la etapa 5 (E6 a E9).
 
 ## Documentos (leer en este orden)
 

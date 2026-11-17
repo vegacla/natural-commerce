@@ -140,3 +140,41 @@ Agregar registrar recepción y consultar estado costó 23 líneas de contrato y 
 - Formas que el resolvedor aún no evalúa: sugiere, fija, limita e inicia. Opción de vigencia `:cierre-del-periodo`.
 - Verbos que el ejecutor aún no aplica, porque ninguna operación los usa: los tres de entidad, `:revierte-hecho` y `:transfiere-compromiso`. Reducir varios compromisos a la vez no está definido y hoy es un error.
 - El resolvedor no usa caminos guardados (D54); llega con E8.
+
+## Etapa 4: vigencia e historia (2026-11-17)
+
+Escenarios E4 y E5.
+
+### Líneas del núcleo
+
+| Archivo | Qué cambió | Líneas |
+|---|---|---|
+| `src/nc/estado.clj` | La vista de una empresa en otra fecha (`al`) | +15 |
+| `src/nc/resolvedor.clj`, `src/nc/ejecutor.clj` | El instante de la vista; no ejecutar en otra fecha | +1 |
+| **Total del núcleo** (etapas 1 a 4) | | **1.389** |
+
+Pruebas: 699 líneas en total; 2 pruebas nuevas (E4 con las dos opciones de vigencia, y E5). Las 28 pruebas, con 182 comprobaciones, pasan.
+
+### Líneas por operación
+
+Consultar estado ganó una línea: devuelve las reglas con que se abrió el caso (`:reglas caso/reglas`). Las demás no cambiaron.
+
+### Rodeos al almacén
+
+Ninguno nuevo. Mirar la empresa en otra fecha es pasar los dos tiempos de XTDB a cada lectura.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente: ninguna detectada por las pruebas; pasaron en la primera corrida. Para descartar que E4 pasara sin probar nada, se rompió a propósito la regla de `:inicio-del-caso` y la prueba falló donde debía.
+
+### Hallazgos de la etapa
+
+- **E4 casi no necesitó código.** La raíz del caso ya anotaba la versión de `compra-formal` al abrirse (etapa 3), y el resolvedor ya elegía la versión según `:aplica-con`. Faltaba decidir qué versión declara la opción: la vigente (D72).
+- **Mirar en otra fecha es una propiedad de la vista, no de cada consulta** (D73). Con `al`, el mismo resolvedor y la misma operación de consulta responden como entonces, sin código propio para el pasado. En el futuro también sirve: muestra qué pedirá una política que todavía no rige.
+- **La regla de un caso y la regla vigente son distintas preguntas.** E5 responde las dos: la del caso queda en su raíz y no cambia; la vigente en una fecha la da el resolvedor mirando en esa fecha.
+
+### Pendiente para etapas siguientes
+
+- La opción `:cierre-del-periodo` sigue sin implementar; ningún escenario la usa.
+- Si una política deja de regir, un caso que la anotó al abrirse ya no la ve. Ningún escenario lo prueba todavía.
