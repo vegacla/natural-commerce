@@ -102,6 +102,7 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D76 | Avanzar un plan es la confirmación del usuario (D14): MARCO ejecuta los pasos que ese usuario puede ejecutar y propone los demás, con lo que falta y quién puede hacerlos. Un paso que otra persona cumplió por fuera del plan cuenta como hecho. Al cumplirse el objetivo de un plan deducido, el camino queda como borrador, con las políticas que produjeron sus pasos y sus versiones (D54). | Precisa D51 para varios pasos. Los pasos se deducen a un solo nivel: de los requisitos del objetivo, no de los requisitos de esos pasos. |
 | D77 | Una referencia a un compromiso declara su tipo (`[:ref :compras/necesidad]`), como ya lo hacía una referencia a un hecho. Los tipos de compromiso son los que abren los contratos. `[:ref :compromiso]` queda para cuando sirve cualquiera. | Sin el tipo, el contrato aceptaba una oferta donde va una solicitud (D65) y SARA no podía ofrecer opciones. Se encontró al construir la etapa 6. |
 | D78 | SARA genera la interfaz de una operación con dos cosas: el contrato (entradas y salidas declaradas) y la respuesta del resolvedor. No tiene código propio para ninguna operación. Los textos son plantillas sobre el vocabulario del resolvedor (falta, se registra con, puede hacerlo, cumplido). | Resuelve P12: la respuesta del resolvedor sola no basta, porque no trae el tipo de cada campo; junto con el contrato, sí. |
+| D79 | Se sigue con Clojure y XTDB. Antes de guardar datos de clientes hacen falta cuatro cosas: un log durable y replicado, un almacén de objetos con versionado y un respaldo ensayado, una suscripción de soporte, y evaluar las bases múltiples de XTDB para separar empresas. | Aplica el criterio de salida del prototipo: E1 a E7 y E9 pasan con cuatro rodeos menores, y la revisión de madurez (`revision-xtdb.md`) no encontró impedimentos. Respaldar y restaurar se probó con los datos de ejemplo. |
 
 ## 2. Criterios para elegir stack
 
@@ -138,5 +139,5 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 
 ## 5. Pendiente
 
-- Construir el prototipo (`prototipo-minimo.md`).
+- Las cuatro condiciones de D79, antes de datos de clientes.
 - Paquete legal chileno inicial, desde fuentes del SII.

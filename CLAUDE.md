@@ -6,7 +6,7 @@ Idioma del proyecto: español (documentos, nombres de dominio, conversación).
 
 ## Estado
 
-El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Falta la revisión de madurez operativa de XTDB (sección 6 de `docs/prototipo-minimo.md`).
+El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Revisión de madurez operativa de XTDB hecha (`docs/revision-xtdb.md`): se sigue con Clojure y XTDB, con cuatro condiciones antes de datos de clientes (D79).
 
 ## Documentos (leer en este orden)
 
@@ -14,7 +14,8 @@ El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembr
 2. `docs/registro-de-decisiones.md` — el modelo en una página (sección 0) y las decisiones, numeradas desde D1. Es la fuente de verdad.
 3. `docs/notacion-v0.md` — notación del núcleo en EDN: primitivos, expresiones, conceptos, contratos, políticas, resolvedor. Sus preguntas están resueltas en la sección 4 del registro, salvo P12, que se valida con el prototipo. P5 y P6 se resolvieron en la etapa 3 (D65, D66).
 4. `docs/prototipo-minimo.md` — alcance, escenarios de aceptación E1 a E9, etapas y criterio de salida.
-5. `docs/analisis-universo-operaciones.md` y `docs/analisis/operaciones.csv` — 74 operaciones de ERP clasificadas por primitivos, verbos y formas de política.
+5. `docs/revision-xtdb.md` — respaldo, costos y soporte de XTDB; criterio de salida.
+6. `docs/analisis-universo-operaciones.md` y `docs/analisis/operaciones.csv` — 74 operaciones de ERP clasificadas por primitivos, verbos y formas de política.
 
 ## Principio de diseño (D46)
 

@@ -273,6 +273,35 @@ Con los datos de ejemplo, el caso 2 de la Empresa B se completó desde SARA:
 
 ### Pendiente
 
-- Revisión de madurez operativa de XTDB, incluido respaldar y restaurar la base del prototipo. Es lo único que falta para el criterio de salida.
 - Etiquetas para personas en el catálogo.
 - Exponer las operaciones como herramientas a un modelo (opcional en la etapa 6).
+
+## Revisión de madurez operativa de XTDB (2026-11-17)
+
+Detalle en `revision-xtdb.md`.
+
+### Líneas
+
+| Archivo | Qué hace | Líneas |
+|---|---|---|
+| `test/nc/respaldo_test.clj` | Respaldo en frío y restauración solo del almacenamiento, con los datos de ejemplo | 111 |
+| `src/nc/ejemplo.clj` | `vistas`: abrir las empresas de una base restaurada sin volver a cargarla | +10 |
+
+El núcleo de MARCO no cambió. Pruebas: las 40, con 280 comprobaciones, pasan.
+
+### Rodeos al almacén
+
+Ninguno en el núcleo. En la prueba, dos cosas que la documentación no dice:
+- En Windows, la ruta del log debe pasarse como `Path`, no como texto: con texto, XTDB la lee como URI y falla.
+- Para forzar un bloque se usa `xtdb.log/send-flush-block-msg!`, que no es una API documentada.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente: ninguna en el núcleo; dos de sintaxis en la prueba.
+
+### Hallazgos
+
+- Con el volumen del prototipo no se cerró ningún bloque: todo estaba en el log. Respaldar solo el almacenamiento no habría guardado nada.
+- Sin el log, XTDB se niega a arrancar; con una época nueva recupera lo que estaba en bloques y pierde lo posterior.
+- Criterio de salida: seguir con Clojure y XTDB (D79), con cuatro condiciones antes de datos de clientes.

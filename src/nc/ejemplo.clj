@@ -12,8 +12,11 @@
 
 (defn- en-dias [n] (Date. (+ (System/currentTimeMillis) (* n 24 60 60 1000))))
 
-(defn- empresa! [almacen canon empresa entidades {:keys [configuracion]}]
-  (let [config (if configuracion (cat/leer configuracion) {})]
+(defn- configuracion [{:keys [configuracion]}]
+  (if configuracion (cat/leer configuracion) {}))
+
+(defn- empresa! [almacen canon empresa entidades datos]
+  (let [config (configuracion datos)]
     (alm/escribir! almacen empresa {:entidades entidades})
     (doseq [p (:politicas config)]
       (alm/publicar! almacen empresa :politicas (assoc p :politica/rige-desde (en-dias -30))))
@@ -42,3 +45,12 @@
              {}
              pasos)
      estados)))
+
+(defn vistas
+  "La vista de cada empresa sobre un almacén donde los datos ya están cargados,
+  por ejemplo uno restaurado de un respaldo: {empresa estado}."
+  ([almacen] (vistas almacen "ejemplos/compras.edn"))
+  ([almacen recurso]
+   (let [canon (cat/leer "canon/compras.edn")]
+     (into (sorted-map) (for [[e datos] (:empresas (cat/leer recurso))]
+                          [e (est/abrir almacen (cat/armar canon (configuracion datos)) e)])))))
