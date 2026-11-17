@@ -176,37 +176,66 @@
   (let [ctx (est/contexto estado refs)]
     (update-vals (:op/salidas contrato) #(e/evaluar % ctx))))
 
+(defn preparar
+  "Lo que haría ejecutar `op` ahora, sin escribir nada: la respuesta del
+  resolvedor y, si la operación está lista y cambia algo, los cambios. Lleva la
+  marca de la empresa leída antes que todo lo demás (D74)."
+  [estado actor op entradas]
+  (let [marca (alm/marca (:almacen estado) (:empresa estado))
+        {:keys [resolucion contrato refs reglas caso]} (r/analizar estado actor op entradas)
+        plan  {:op op :resolucion resolucion :contrato contrato :refs refs :reglas reglas :marca marca}]
+    (if (and (= :listo (:estado resolucion)) (= :efecto (:op/tipo contrato)) (not (:al estado)))
+      (let [app (reduce efecto
+                        {:estado estado :op op :actor actor :refs refs :caso caso :traza (atom {})
+                         :hechos [] :compromisos {} :nuevos #{} :saldos {}}
+                        (:op/efectos contrato))]
+        (assoc plan :app app :cambios (cerrar app reglas)))
+      plan)))
+
+(defn aplicar!
+  "Escribe los cambios preparados, solo si el estado de la empresa no cambió
+  desde que se prepararon (D49). Si cambió, falla con :conflicto y nada queda
+  escrito."
+  [estado {:keys [app cambios marca contrato reglas]}]
+  (let [{:keys [registro]} (alm/escribir! (:almacen estado) (:empresa estado) cambios {:marca marca})]
+    {:estado   :ejecutado
+     :salidas  (salidas estado contrato (:refs app))
+     :caso     (get-in app [:caso :compromiso/id])
+     :hechos   (mapv :hecho/id (:hechos cambios))
+     :reglas   (merge reglas (:reglas @(:traza app)))
+     :registro registro}))
+
+(def ^:private intentos 5)
+
+(defn- conflicto? [ex] (= :conflicto (:nc/error (ex-data ex))))
+
 (defn ejecutar!
   "Ejecuta `op` con `entradas` en nombre de `actor`. Si la operación no está
   lista, devuelve la respuesta del resolvedor (`:bloqueado` o `:prohibido`); si
   falta la confirmación, la misma respuesta con estado `:por-confirmar`. Una
-  consulta no cambia nada y no se confirma."
+  consulta no cambia nada y no se confirma.
+
+  Si otra escritura se adelanta, vuelve a preparar desde el estado nuevo: las
+  políticas se verifican otra vez antes de escribir (D49, D74)."
   [estado actor op entradas {:keys [confirmado]}]
-  (let [{:keys [resolucion contrato refs reglas caso]} (r/analizar estado actor op entradas)
-        efecto? (= :efecto (:op/tipo contrato))]
-    (cond
-      (not= :listo (:estado resolucion))
-      resolucion
+  (loop [intento 1]
+    (let [{:keys [resolucion contrato refs] :as plan} (preparar estado actor op entradas)
+          resultado
+          (cond
+            (not= :listo (:estado resolucion))
+            resolucion
 
-      (not efecto?)
-      {:estado :consultado :salidas (salidas estado contrato refs)}
+            (not= :efecto (:op/tipo contrato))
+            {:estado :consultado :salidas (salidas estado contrato refs)}
 
-      (:al estado)
-      (e/error! :solo-lectura "En otra fecha solo se consulta: el pasado no se corrige (D18)" {:op op})
+            (:al estado)
+            (e/error! :solo-lectura "En otra fecha solo se consulta: el pasado no se corrige (D18)" {:op op})
 
-      (and (not confirmado) (= :requerida (:confirmacion resolucion)))
-      (assoc resolucion :estado :por-confirmar)
+            (and (not confirmado) (= :requerida (:confirmacion resolucion)))
+            (assoc resolucion :estado :por-confirmar)
 
-      :else
-      (let [app     (reduce efecto
-                            {:estado estado :op op :actor actor :refs refs :caso caso :traza (atom {})
-                             :hechos [] :compromisos {} :nuevos #{} :saldos {}}
-                            (:op/efectos contrato))
-            cambios (cerrar app reglas)
-            {:keys [registro]} (alm/escribir! (:almacen estado) (:empresa estado) cambios)]
-        {:estado   :ejecutado
-         :salidas  (salidas estado contrato (:refs app))
-         :caso     (get-in app [:caso :compromiso/id])
-         :hechos   (mapv :hecho/id (:hechos cambios))
-         :reglas   (merge reglas (:reglas @(:traza app)))
-         :registro registro}))))
+            :else
+            (try (aplicar! estado plan)
+                 (catch clojure.lang.ExceptionInfo ex
+                   (if (and (conflicto? ex) (< intento intentos)) ::otra-vez (throw ex)))))]
+      (if (= ::otra-vez resultado) (recur (inc intento)) resultado))))

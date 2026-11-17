@@ -1,7 +1,7 @@
 ;; Canon de la capacidad Compras para el prototipo mínimo.
 ;;
-;; Siete operaciones, ejecutadas por el ejecutor general sin código propio (P6).
-;; Falta registrar pago, que se agrega en la etapa 5 solo con su contrato (E6).
+;; Ocho operaciones, ejecutadas por el ejecutor general sin código propio (P6).
+;; Registrar pago se agregó en la etapa 5 solo con su contrato (E6).
 
 {:entidades
  [{:entidad/tipo   :producto
@@ -73,6 +73,12 @@
                         [:orden [:ref :compras/orden]]
                         [:monto :monto]
                         [:vencimiento :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/pago
+   :tipo-hecho/datos   [:map
+                        [:orden [:ref :compras/orden]]
+                        [:monto :monto]]
    :tipo-hecho/regimen :solo-agregar}]
 
  :contratos
@@ -193,4 +199,16 @@
                   :compromisos [:compromisos {:raiz caso/id}]
                   :reglas      caso/reglas
                   :por-recibir [:suma [:-> cada :compromiso/saldo :cantidad]
-                                      [:compromisos {:raiz caso/id :tipo :compras/recepcion-pendiente}]]}}]}
+                                      [:compromisos {:raiz caso/id :tipo :compras/recepcion-pendiente}]]}}
+
+  {:op/id        :compras/registrar-pago
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:orden [:ref :compras/orden]]
+                  [:monto :monto]]
+   :op/salidas   {:pago pago/id}
+   :op/efectos
+   [[:registra-hecho :compras/pago entrada :como pago]
+    [:reduce-compromiso [:compromisos {:tipo :compras/pago-contra-factura :origen entrada/orden :estado :activo}]
+                        {:monto entrada/monto}]]}]}

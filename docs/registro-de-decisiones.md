@@ -1,7 +1,7 @@
 # Natural Commerce — Registro de decisiones
 
 Actualizado: 2026-11-17. Origen: sesión de descubrimiento sobre "Visión funcional de SARA y MARCO".
-Estado: modelo cerrado; prototipo en construcción (Clojure + XTDB), etapas 1 a 4 hechas.
+Estado: modelo cerrado; prototipo en construcción (Clojure + XTDB), etapas 1 a 5 hechas (E1 a E9).
 Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.md`, `notacion-v0.md`.
 
 ## 0. El modelo en una página
@@ -72,7 +72,7 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D46 | Principio de cierre: lo que pertenece al significado de una operación es contrato; lo que decide una empresa es política con valor por defecto; lo que impone la ley es política legal. | Ver sección 0. |
 | D47 | Si existe un camino guardado, se usa. Los pasos se deducen solo cuando no hay camino. | Precisado por D54. |
 | D48 | Todo lo calculado que se guarda lleva la versión de lo que lo calculó (concepto, política, regla o cálculo algorítmico). Saldos, valores fijados por una política y evidencia de un hecho son casos de esta regla. | Generaliza D38 (evidencia) y D41 (saldos). |
-| D49 | Verificar una condición y aplicar el efecto ocurren siempre en la misma transacción. Lo que la empresa configura es la regla (ej.: prohibir o permitir sobreventa), no la atomicidad. | Corrige D19. |
+| D49 | Verificar una condición y aplicar el efecto ocurren siempre en la misma transacción. Lo que la empresa configura es la regla (ej.: prohibir o permitir sobreventa), no la atomicidad. | Corrige D19. Cómo se logra: D74. |
 | D50 | `:aplica-con` no tiene un conjunto cerrado de valores: cada política elige una opción de un catálogo de opciones de vigencia que entrega la plataforma (inicio del caso, fecha del paso, cierre del período, y las que se agreguen). | Generaliza P10. D44 pasa a ser una opción del catálogo, no una regla aparte. |
 | D51 | Ante un objetivo, MARCO ejecuta lo que puede ejecutar y propone lo que no. Ej.: "comprar 10" cuando se requiere una orden de compra con aprobación: MARCO propone crear la orden, no compra. | Precisa D33: el comportamiento no depende de la forma del objetivo. |
 | D52 | Una operación es su contrato. | Precisa D1: lo que el equipo escribe para agregar una operación es el contrato. |
@@ -97,6 +97,9 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D71 | Un requisito de una política "exige" dice con qué operación se cumple (`:via`) y, si esa operación tiene una salida que la operación objetivo recibe como entrada, cuál es esa entrada (`:entrega`). Una entrada así deja de ser opcional. | Aplica D10: la salida de una operación es entrada de otra. Es lo que SARA necesita para encadenar pasos (P12). |
 | D72 | Cuando una política tiene una versión nueva, la versión vigente en el paso declara si un caso abierto la adopta (`:fecha-del-paso`) o conserva la anotada al abrir el caso (`:inicio-del-caso`). | Precisa D9: decide la versión nueva, porque es la que sabe si su cambio debe alcanzar a los casos abiertos. |
 | D73 | MARCO puede mirar una empresa en cualquier fecha. En el pasado ve lo que regía entonces, según lo que se sabía entonces; en el futuro, lo que regirá, según lo que se sabe hoy. Mirando en otra fecha consulta y resuelve, pero no ejecuta. | Aplica D17 a MARCO entero, no solo a la lectura de datos. No ejecutar en otra fecha es D18. |
+| D74 | Cada empresa tiene una marca que crece con cada escritura. MARCO lee la marca antes de verificar; la transacción exige que siga igual y la avanza. Si otra escritura se adelantó, nada se escribe y MARCO vuelve a verificar desde el estado nuevo. | Cumple D49 con concurrencia optimista: verificar sobre lo leído equivale a verificar dentro de la transacción. Dos escrituras de una misma empresa nunca se aplican en paralelo; las de empresas distintas no chocan. |
+| D75 | Desactivar una política, un concepto o un camino es retirarlo desde una fecha. Deja de regir, pero su historia queda y se puede ver como regía antes. | Aplica D8 y D17: desactivar no borra. |
+| D76 | Avanzar un plan es la confirmación del usuario (D14): MARCO ejecuta los pasos que ese usuario puede ejecutar y propone los demás, con lo que falta y quién puede hacerlos. Un paso que otra persona cumplió por fuera del plan cuenta como hecho. Al cumplirse el objetivo de un plan deducido, el camino queda como borrador, con las políticas que produjeron sus pasos y sus versiones (D54). | Precisa D51 para varios pasos. Los pasos se deducen a un solo nivel: de los requisitos del objetivo, no de los requisitos de esos pasos. |
 
 ## 2. Criterios para elegir stack
 

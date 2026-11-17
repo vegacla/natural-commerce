@@ -7,7 +7,11 @@
   fecha (D17) es consultar los dos en ese instante: opción `:al`.
 
   Una sola base para todas las empresas (D22): todo documento lleva `:empresa`
-  y toda lectura filtra por ella."
+  y toda lectura filtra por ella.
+
+  Verificar y aplicar ocurren en una transacción (D49, D74): cada empresa tiene
+  una marca que crece con cada escritura. Quien escribe declara la marca que vio
+  al leer; si otra escritura la movió, la transacción completa falla."
   (:require [clojure.walk :as walk]
             [xtdb.api :as xt]
             [xtdb.node :as xtn])
@@ -46,7 +50,8 @@
    :entidades   :entidad/id
    :politicas   :politica/id
    :conceptos   :concepto/id
-   :caminos     :camino/id})
+   :caminos     :camino/id
+   :marcas      nil})
 
 (def ^:private versionadas
   "Tablas cuyo dato cambia en operación, con :version y :rige-desde (D8)."
@@ -65,6 +70,7 @@
   (case tabla
     (:hechos :compromisos) (get doc (tablas tabla))
     :saldos                (uuid-de [empresa tabla (clave-saldo doc)])
+    :marcas                (uuid-de [empresa tabla])
     (uuid-de [empresa tabla (get doc (tablas tabla))])))
 
 (defn- a-instante [x]
@@ -143,10 +149,10 @@
   (let [xid (xt-id tabla empresa (if (= :saldos tabla)
                                    {:saldo/concepto (first id) :saldo/clave (second id)}
                                    {(tablas tabla) id}))]
-    (->> (xt/q nodo [(list 'fn '[id]
-                           (list 'from tabla {:bind '[{:xt/id id} * xt/valid-from xt/valid-to xt/system-from]
+    (->> (xt/q nodo [(list 'fn '[id e]
+                           (list 'from tabla {:bind '[{:xt/id id :empresa e} * xt/valid-from xt/valid-to xt/system-from]
                                               :for-valid-time :all-time}))
-                     xid])
+                     xid empresa])
          (map de-xt)
          (sort-by (juxt :xt/system-from :xt/valid-from))
          reverse
@@ -161,6 +167,21 @@
   [:put-docs (merge {:into tabla} periodo)
    (assoc (a-xt doc) :xt/id (xt-id tabla empresa doc) :empresa empresa)])
 
+(defn marca
+  "La marca de la empresa: cuántas escrituras lleva. 0 si ninguna."
+  [{:keys [nodo]} empresa]
+  (or (:n (first (xt/q nodo [(list 'fn '[id] (list 'from :marcas '[{:xt/id id} n])) (xt-id :marcas empresa {})])))
+      0))
+
+(defn- marca-vista
+  "Exige que la marca siga siendo la que se vio al leer, y la avanza."
+  [empresa n]
+  (let [id (xt-id :marcas empresa {})]
+    [(if (zero? n)
+       [:sql "ASSERT NOT EXISTS (SELECT 1 FROM marcas WHERE _id = ?)" [id]]
+       [:sql "ASSERT EXISTS (SELECT 1 FROM marcas WHERE _id = ? AND n = ?)" [id n]])
+     [:put-docs :marcas {:xt/id id :empresa empresa :n (inc n)}]]))
+
 (defn- hecho-nuevo
   "Un hecho no se modifica (D16): si ya existe, la transacción completa falla."
   [empresa hecho]
@@ -172,11 +193,15 @@
   empresa. Un hecho que ya existe aborta todo: nada queda escrito. Un compromiso,
   saldo o entidad se reemplaza por su nuevo estado, y XTDB guarda el anterior.
 
+  `:marca` es la marca de la empresa que vio quien preparó los cambios. Si otra
+  escritura la movió desde entonces, nada se escribe y falla con :conflicto.
+
   `:registro` fija el tiempo de registro; solo sirve para cargar datos antiguos y
   para pruebas, y debe ser posterior al de la última transacción."
   ([alm empresa cambios] (escribir! alm empresa cambios {}))
-  ([{:keys [nodo]} empresa {:keys [hechos compromisos saldos entidades]} {:keys [registro]}]
-   (let [ops (concat (mapcat #(hecho-nuevo empresa %) hechos)
+  ([{:keys [nodo] :as alm} empresa {:keys [hechos compromisos saldos entidades]} {:keys [registro] n :marca}]
+   (let [ops (concat (when n (marca-vista empresa n))
+                     (mapcat #(hecho-nuevo empresa %) hechos)
                      (map #(put :compromisos empresa %) compromisos)
                      (map #(put :saldos empresa %) saldos)
                      (map #(put :entidades empresa %) entidades))]
@@ -185,10 +210,13 @@
                                                         (cond-> {} registro (assoc :system-time registro)))]
          {:tx tx-id :registro (a-instante system-time)})
        (catch Exception e
-         (if (re-find #"Assert failed" (str (ex-message e)))
+         (cond
+           (not (re-find #"Assert failed" (str (ex-message e)))) (throw e)
+           (and n (not= n (marca alm empresa)))
+           (error! :conflicto "Otra escritura cambió el estado de la empresa desde que se leyó" {:marca n})
+           :else
            (error! :hecho-existente "Un hecho no se modifica: ya existe un hecho con ese identificador"
-                   {:hechos (map :hecho/id hechos)})
-           (throw e)))))))
+                   {:hechos (map :hecho/id hechos)})))))))
 
 (defn publicar!
   "Publica una versión de una política, concepto o camino, vigente desde su
@@ -212,6 +240,18 @@
            (xt/execute-tx nodo [(put tabla empresa doc periodo)]
                           (cond-> {} registro (assoc :system-time registro)))]
        {:tx tx-id :registro (a-instante system-time)}))))
+
+(defn retirar!
+  "Una política, concepto o camino deja de regir desde `:desde` (por defecto,
+  ahora). Su historia queda: se puede ver como regía antes (D75)."
+  ([alm empresa tabla id] (retirar! alm empresa tabla id {}))
+  ([{:keys [nodo]} empresa tabla id {:keys [desde]}]
+   (when-not (versionadas tabla)
+     (error! :tabla-no-versionada (str tabla " no tiene versiones") {:tabla tabla}))
+   (let [{:keys [tx-id system-time]}
+         (xt/execute-tx nodo [[:delete-docs {:from tabla :valid-from (or desde (Date.))}
+                               (xt-id tabla empresa {(tablas tabla) id})]])]
+     {:tx tx-id :registro (a-instante system-time)})))
 
 (defn vigente
   "La versión de una política, concepto o camino que rige en `:al` (o ahora), según

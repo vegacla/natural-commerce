@@ -38,7 +38,20 @@
    :politica/origen     :empresa
    :politica/aplica-a   :compras/aprobar
    :politica/forma      :permite
-   :politica/cuerpo     {:quien [:rol :jefe-compras]}}]
+   :politica/cuerpo     {:quien [:rol :jefe-compras]}}
+
+  ;; No se recibe más de lo que queda pendiente de la orden (escenario E7).
+  {:politica/id         :empresa-b/recibir-hasta-lo-pendiente
+   :politica/version    1
+   :politica/rige-desde #inst "2026-12-01"
+   :politica/origen     :empresa
+   :politica/aplica-a   :compras/registrar-recepcion
+   :politica/cuando     [:> entrada/cantidad
+                            [:suma [:-> cada :compromiso/saldo :cantidad]
+                                   [:compromisos {:tipo :compras/recepcion-pendiente :origen entrada/orden
+                                                  :estado :activo}]]]
+   :politica/forma      :prohibe
+   :politica/cuerpo     {:razon "No se recibe más de lo que queda pendiente de la orden"}}]
 
  :caminos
  [{:camino/id       :empresa-b/abastecer

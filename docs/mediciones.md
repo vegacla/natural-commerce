@@ -178,3 +178,49 @@ Ninguno nuevo. Mirar la empresa en otra fecha es pasar los dos tiempos de XTDB a
 
 - La opción `:cierre-del-periodo` sigue sin implementar; ningún escenario la usa.
 - Si una política deja de regir, un caso que la anotó al abrirse ya no la ve. Ningún escenario lo prueba todavía.
+
+## Etapa 5: extensión, concurrencia, composición y separación (2026-11-17)
+
+Escenarios E6 a E9.
+
+### E6: cero cambios en el núcleo
+
+Se cumple literalmente. Registrar pago se agregó con 11 líneas de contrato y 6 de tipo de hecho en `compras.edn`, antes de cualquier otro cambio de la etapa, y la prueba pasó con `src/` sin modificar. Fue también la primera vez que se ejecutó registrar factura, que activa el pago; funcionó sin cambios.
+
+### Líneas del núcleo
+
+| Archivo | Qué cambió | Líneas |
+|---|---|---|
+| `src/nc/almacen.clj` | Marca por empresa (E7), retirar (E7), historia filtrada por empresa (E9) | +35 |
+| `src/nc/ejecutor.clj` | Preparar y aplicar por separado; reintento ante conflicto (E7) | +24 |
+| `src/nc/planificador.clj` | Planes, caminos y borradores (E8) | 113 |
+| `src/nc/valor.clj` | El 0 de una suma vacía se compara con cualquier valor (E7) | +4 |
+| **Total del núcleo** (etapas 1 a 5) | | **1.565** |
+
+Pruebas: 935 líneas en total; 4 pruebas nuevas, una por escenario. Las 32 pruebas, con 235 comprobaciones, pasan.
+
+### Rodeos al almacén
+
+Ninguno nuevo. La verificación atómica de E7 usa lo que XTDB ofrece: un `ASSERT` de SQL sobre la marca de la empresa en la misma transacción que los cambios. Retirar una política es un borrado con fecha de validez, que XTDB entrega sin diseño adicional.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente:
+  - **Fuga entre empresas, encontrada al diseñar E9.** La historia de hechos y compromisos se buscaba solo por identificador, sin filtrar por empresa: quien conociera el identificador de un compromiso de otra empresa podía ver su historia. Se corrigió y E9 lo prueba; con el filtro quitado, la prueba falla.
+  - **El 0 de una suma vacía no se comparaba con un monto o una cantidad.** La política de E7 compara lo que se recibe con la suma de lo pendiente, que puede no tener elementos. Se aceptó el 0 suelto en las comparaciones, como ya se aceptaba en las sumas.
+  - **El resolvedor no decía con qué operación se cumplió un requisito satisfecho.** El planificador lo necesitaba para reconocer pasos que otra persona hizo fuera del plan. Ahora todo requisito de un "exige" lleva `:via`.
+
+### Hallazgos de la etapa
+
+- **E7: la concurrencia es correcta y la prueba no depende del azar.** Dos recepciones preparadas sobre el mismo estado pasan la política; la primera se escribe, la segunda choca. Al reintentar, la política ve lo recibido y la prohíbe. Con hilos simultáneos el resultado es el mismo: una pasa y otra queda prohibida. Con la política retirada pasan ambas y el saldo queda en −4.
+- **Costo de D74.** Las escrituras de una misma empresa se serializan: si dos chocan, una se repite entera (máximo 5 intentos). Para el prototipo basta; con mucho volumen por empresa habrá que medir los reintentos o afinar la marca por caso.
+- **E9: la separación depende de filtrar en cada lectura.** El prototipo lo hace en un solo lugar (`almacen.clj`), y aun así se escapó una función. Las bases de datos múltiples de XTDB 2.1 harían la separación estructural en vez de disciplinada; conviene evaluarlas antes de datos reales.
+- **E8: el plan se arma con lo que el resolvedor ya entrega.** `:via`, `:faltan`, `:quien` y `:entrega` bastan para deducir los pasos, encadenar la salida de uno con la entrada de otro y decir qué falta. Un camino guardado se rechaza con una razón legible cuando sus políticas no aplican, como pide D54.
+- **Composición a un solo nivel.** Los pasos se deducen de los requisitos del objetivo, no de los requisitos de cada paso. Alcanzó para compras; un objetivo cuyos pasos tengan a su vez políticas "exige" necesitaría deducir en profundidad.
+
+### Pendiente
+
+- Etapa 6: SARA mínima (P12). Necesitará un conjunto de datos de ejemplo explorable.
+- Revisión de madurez operativa de XTDB, incluido respaldar y restaurar la base del prototipo (sección 6 de `prototipo-minimo.md`).
+- Formas sugiere, fija, limita e inicia; opción `:cierre-del-periodo`; verbos de entidad, `:revierte-hecho` y `:transfiere-compromiso`.

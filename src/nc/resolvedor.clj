@@ -114,11 +114,11 @@
         cumplen    (count (filter #(true? (:valor %)) evaluados))
         falta      (some :falta evaluados)
         via        (est/registradora (:catalogo estado) hecho)]
-    (merge {:id hecho :politica (:politica/id p)}
+    (merge {:id hecho :politica (:politica/id p) :via via}
            (cond
              (>= cumplen n) {:estado :satisfecho}
              falta          {:estado :indeterminado :pide [(dato falta)]}
-             :else          (merge {:estado :pendiente :faltan (- n cumplen) :via via}
+             :else          (merge {:estado :pendiente :faltan (- n cumplen)}
                                    (quien-puede estado ctx via)))
            (when-let [k (entrega estado contrato via)] {:entrega k}))))
 

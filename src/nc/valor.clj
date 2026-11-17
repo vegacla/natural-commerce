@@ -66,12 +66,17 @@
                      (if (zero? decimales) (.toBigInteger d) d)))]
      (if (valor? x) (con-numero x (r (numero x))) (r x)))))
 
+(defn- cero? [x] (and (number? x) (zero? x)))
+
 (defn comparar
   "Como compare, pero rechaza comparar valores de distinto tipo o unidad, o un
-  valor con un número suelto."
+  valor con un número suelto. El 0 suelto, que es la suma de una colección vacía,
+  se compara con cualquier valor."
   [a b]
   (cond
     (misma-unidad? a b)         (compare (numero a) (numero b))
+    (and (valor? a) (cero? b))  (compare (numero a) 0)
+    (and (cero? a) (valor? b))  (compare 0 (numero b))
     (or (valor? a) (valor? b))  (error! :comparar a b)
     :else                       (compare a b)))
 

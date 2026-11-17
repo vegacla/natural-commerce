@@ -21,7 +21,7 @@
 (def canon (cat/leer "canon/compras.edn"))
 (def empresa-b (cat/leer "empresas/empresa-b.edn"))
 
-(defn- dias-desde-hoy [n] (Date. (+ (System/currentTimeMillis) (* n 24 60 60 1000))))
+(defn dias-desde-hoy [n] (Date. (+ (System/currentTimeMillis) (* n 24 60 60 1000))))
 
 (def entidades
   [{:entidad/id :P-100 :entidad/tipo :producto :producto/codigo "P-100"
@@ -33,7 +33,7 @@
    {:entidad/id :persona/luis :entidad/tipo :persona :persona/nombre "Luis"
     :persona/roles #{:jefe-compras}}])
 
-(defn- empresa!
+(defn empresa!
   "Una empresa nueva con las entidades del caso y la configuración dada. Las
   políticas se publican vigentes desde hace un mes: las pruebas usan el reloj real."
   [config]
@@ -43,12 +43,12 @@
       (alm/publicar! *alm* e :politicas (assoc p :politica/rige-desde (dias-desde-hoy -30))))
     (est/abrir *alm* (cat/armar canon config) e)))
 
-(defn- ejecutar! [empresa actor op entradas]
+(defn ejecutar! [empresa actor op entradas]
   (ej/ejecutar! empresa actor op entradas {:confirmado true}))
 
-(defn- requisito [res id] (first (filter #(= id (:id %)) (:requisitos res))))
+(defn requisito [res id] (first (filter #(= id (:id %)) (:requisitos res))))
 
-(defn- compromiso [empresa id] (est/leer empresa id))
+(defn compromiso [empresa id] (est/leer empresa id))
 
 (def orden-20
   {:proveedor       :proveedor/acme
@@ -264,7 +264,7 @@
 
 ;; --- E5 --------------------------------------------------------------------------
 
-(defn- compra-formal!
+(defn compra-formal!
   "Un caso completo de la Empresa B hasta la orden. Devuelve la solicitud, la
   orden y el instante en que se registró la orden."
   [b]

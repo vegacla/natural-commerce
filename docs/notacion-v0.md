@@ -396,7 +396,7 @@ Al guardar una política, el validador busca choques con las vigentes (D35): dos
 | `:fecha-del-paso` | La vigente en cada paso (típica de lo tributario) |
 | `:cierre-del-periodo` | La vigente al último cierre; un cambio rige desde el cierre siguiente (D44) |
 
-Las legales traen la opción fijada por el equipo. Una política sin `:aplica-con` usa `:fecha-del-paso` (D70). Cuando hay una versión nueva, lo que ella declara decide si el caso abierto la adopta (D72).
+Las legales traen la opción fijada por el equipo. Una política sin `:aplica-con` usa `:fecha-del-paso` (D70). Desactivar una política es retirarla desde una fecha; su historia queda (D75). Cuando hay una versión nueva, lo que ella declara decide si el caso abierto la adopta (D72).
 
 ## 7. Objetivos, caminos y resolvedor
 
@@ -425,6 +425,8 @@ Las legales traen la opción fijada por el equipo. Una política sin `:aplica-co
  :camino/estado  :activo}                    ; :borrador | :activo | :retirado
 ```
 
+Un plan es la lista de pasos para un objetivo: los de un camino activo cuyas políticas aplican, o los deducidos de los requisitos. Avanzarlo ejecuta lo que el usuario puede y propone lo demás; al cumplirse un plan deducido, su camino queda como borrador (D76).
+
 **[P11]** Resuelto (D47, D54): si existe un camino guardado y las políticas de `:camino/reglas` aplican al caso, se usa. Si no aplican (p. ej. una compra bajo el umbral de `compra-formal`), MARCO lo rechaza y deduce los pasos. Los pasos se deducen también cuando no hay camino. Si una política nueva exige un paso que el camino no tiene, la empresa configura qué ocurre.
 
 ### 7.3 Respuesta del resolvedor
@@ -441,7 +443,7 @@ Para cada requisito, uno de cinco estados: los cuatro que pide el criterio 4 de 
 
 El `:estado` general es `:listo` si no queda nada pendiente ni indeterminado, `:bloqueado` si queda algo, y `:prohibido` si la operación misma está prohibida.
 
-Además, cada requisito que viene de una política dice cuál (`:politica`), y uno pendiente dice cuántos faltan (`:faltan`) y qué entrada de la operación objetivo llena el paso (`:entrega`, D71). Una entrada que falta o no calza con el contrato es un requisito pendiente con `:pide` y, si no calza, `:problema` (D65). La respuesta dice también si hace falta confirmar (`:confirmacion :requerida` o `:eximida`) y a qué caso pertenece la operación (`:caso`).
+Además, cada requisito que viene de una política dice cuál (`:politica`) y con qué operación se cumple (`:via`), y uno pendiente dice cuántos faltan (`:faltan`) y qué entrada de la operación objetivo llena el paso (`:entrega`, D71). Una entrada que falta o no calza con el contrato es un requisito pendiente con `:pide` y, si no calza, `:problema` (D65). La respuesta dice también si hace falta confirmar (`:confirmacion :requerida` o `:eximida`) y a qué caso pertenece la operación (`:caso`).
 
 ```clojure
 {:objetivo  {:operacion :compras/emitir-orden ...}
