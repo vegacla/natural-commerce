@@ -1,8 +1,7 @@
 ;; Canon de la capacidad Compras para el prototipo mínimo.
 ;;
-;; Etapa 1: estos datos prueban los esquemas y el validador. Los contratos se
-;; ejecutan recién en la etapa 3. Faltan registrar recepción y consultar estado
-;; (etapa 3) y registrar pago (etapa 5, escenario E6).
+;; Siete operaciones, ejecutadas por el ejecutor general sin código propio (P6).
+;; Falta registrar pago, que se agrega en la etapa 5 solo con su contrato (E6).
 
 {:entidades
  [{:entidad/tipo   :producto
@@ -17,7 +16,12 @@
    :entidad/extensible true}
 
   {:entidad/tipo   :persona
-   :entidad/campos {:persona/nombre :texto}
+   :entidad/campos {:persona/nombre :texto
+                    :persona/roles  [:set :keyword]}
+   :entidad/extensible true}
+
+  {:entidad/tipo   :bodega
+   :entidad/campos {:bodega/nombre :texto}
    :entidad/extensible true}]
 
  :tipos-hecho
@@ -52,6 +56,17 @@
                         [:solicitud {:optional true} [:ref :compromiso]]
                         [:oferta {:optional true} [:ref :compromiso]]]
    :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/recepcion
+   :tipo-hecho/datos   [:map
+                        [:orden [:ref :compras/orden]]
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/bodega}
+                         :suma  {:cantidad hecho/cantidad}}]}
 
   {:tipo-hecho/id      :compras/factura
    :tipo-hecho/datos   [:map
@@ -98,7 +113,8 @@
                        :origen   recibida/id
                        :objeto   {:producto        entrada/producto
                                   :cantidad        entrada/cantidad
-                                  :precio-unitario entrada/precio-unitario}}
+                                  :precio-unitario entrada/precio-unitario}
+                       :saldo    {:cantidad entrada/cantidad}}
      :como oferta]]}
 
   {:op/id        :compras/aprobar
@@ -140,6 +156,20 @@
                        :origen   orden/id
                        :objeto   {:monto [:* entrada/cantidad entrada/precio-unitario]}}]]}
 
+  {:op/id        :compras/registrar-recepcion
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:orden [:ref :compras/orden]]
+                  [:producto [:ref :producto]]
+                  [:bodega [:ref :bodega]]
+                  [:cantidad :cantidad]]
+   :op/salidas   {:recepcion recepcion/id}
+   :op/efectos
+   [[:registra-hecho :compras/recepcion entrada :como recepcion]
+    [:reduce-compromiso [:compromisos {:tipo :compras/recepcion-pendiente :origen entrada/orden}]
+                        {:cantidad entrada/cantidad}]]}
+
   {:op/id        :compras/registrar-factura
    :op/capacidad :compras
    :op/tipo      :efecto
@@ -151,4 +181,15 @@
    :op/efectos
    [[:registra-hecho :compras/factura entrada :como factura]
     [:modifica-compromiso [:compromisos {:tipo :compras/pago-contra-factura :origen entrada/orden}]
-                          {:estado :activo :vence entrada/vencimiento}]]}]}
+                          {:estado :activo :vence entrada/vencimiento}]]}
+
+  {:op/id        :compras/consultar-estado
+   :op/capacidad :compras
+   :op/tipo      :consulta
+   :op/entradas  [:map
+                  [:orden {:optional true} [:ref :compras/orden]]
+                  [:solicitud {:optional true} [:ref :compromiso]]]
+   :op/salidas   {:hechos      [:hechos {:caso caso/id}]
+                  :compromisos [:compromisos {:raiz caso/id}]
+                  :por-recibir [:suma [:-> cada :compromiso/saldo :cantidad]
+                                      [:compromisos {:raiz caso/id :tipo :compras/recepcion-pendiente}]]}}]}

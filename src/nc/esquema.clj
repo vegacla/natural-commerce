@@ -34,13 +34,18 @@
   [forma]
   (try (m/schema forma {:registry registro}) (catch Exception _ nil)))
 
-(defn campos-de
-  "Campos de un esquema [:map ...]: nombre → {:tipo forma :opcional bool}."
+(defn campos-ordenados
+  "Campos de un esquema [:map ...] en el orden declarado: [[nombre {:tipo forma :opcional bool}] ...]."
   [forma]
   (when-let [s (esquema-de-datos forma)]
     (when (= :map (m/type s))
-      (into {} (map (fn [[k props hijo]] [k {:tipo (m/form hijo) :opcional (boolean (:optional props))}]))
+      (mapv (fn [[k props hijo]] [k {:tipo (m/form hijo) :opcional (boolean (:optional props))}])
             (m/children s)))))
+
+(defn campos-de
+  "Campos de un esquema [:map ...]: nombre → {:tipo forma :opcional bool}."
+  [forma]
+  (some->> (campos-ordenados forma) (into {})))
 
 (defn- tipos-de
   "Campo → tipo de un esquema [:map ...], o nil si está mal escrito."

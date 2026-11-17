@@ -1,7 +1,7 @@
 # Natural Commerce — Notación del núcleo, borrador v0
 
 Fecha: 2026-11-16. Etapa 1 del prototipo mínimo. Se apoya en las decisiones del registro.
-Estado: las preguntas marcadas en el texto (P1 a P12) están resueltas en la sección 4 de `registro-de-decisiones.md`, salvo P5 y P6, que se deciden al construir, y P12, que se valida con el prototipo. Donde difieren, manda el registro.
+Estado: las preguntas marcadas en el texto (P1 a P12) están resueltas en la sección 4 de `registro-de-decisiones.md`, salvo P12, que se valida con el prototipo. P5 y P6 se resolvieron al construir la etapa 3 (D65, D66). Donde difieren, manda el registro.
 
 ## 0. Convenciones
 
@@ -56,6 +56,7 @@ Algo que ocurrió. No se modifica: se revierte con otro hecho (D16).
  :hecho/datos  {:orden #uuid "..." :producto :P-100 :bodega :central
                 :cantidad [:cantidad 12 :un]}
  :hecho/causa  {:operacion :compras/registrar-recepcion :plan #uuid "..."}
+ :hecho/caso   #uuid "..."                                         ; compromiso raíz del caso (D68)
  :hecho/reglas {:empresa-b/compra-formal 3 :legal.cl/periodo 1    ; versiones de las políticas
                 :costo/promedio 1}                                 ; y conceptos aplicados (D48)
  :hecho/evidencia {:costo/promedio [:monto 4210 :CLP]}}            ; valores algorítmicos usados (D38)
@@ -98,7 +99,8 @@ Algo pendiente entre partes. Se guarda (D29).
 ```
 
 - **Latente** es el compromiso condicional (H2): una oferta que obliga solo si se acepta, o la obligación de pagar que nace con la orden pero se activa con la factura. Lo activa, con `:modifica-compromiso`, la operación que registra el hecho esperado (sección 5.1, D56); ningún compromiso cambia de estado sin una operación.
-- **Raíz** identifica el caso sin necesidad de una instancia de proceso (D15). Es el primer compromiso de la cadena: la solicitud en la Empresa B, la orden en la Empresa A. Las versiones de su `:compromiso/reglas` son las que rigen el caso para las políticas con `:inicio-del-caso`. Quien inició el caso es el actor del hecho que abrió la raíz: `[:-> caso/origen :hecho/actor]`.
+- **Saldo**: por defecto, los montos y cantidades del objeto; `:abre-compromiso` puede declararlo con `:saldo`. Si una reducción lo deja en cero o menos, el compromiso se extingue por cumplimiento en la misma operación (D69).
+- **Raíz** identifica el caso sin necesidad de una instancia de proceso (D15). Es el primer compromiso de la cadena: la solicitud en la Empresa B, la orden en la Empresa A. Las versiones de su `:compromiso/reglas` son las que rigen el caso para las políticas con `:inicio-del-caso`. Quien inició el caso es el actor del hecho que abrió la raíz: `[:-> caso/origen :hecho/actor]`. El caso de una operación se deduce de sus entradas, y cada hecho lo guarda en `:hecho/caso` (D68).
 
 **[P2]** Resuelto: bastan tres estados. "Vencido" no es un estado: se calcula comparando `:vence` con `ahora`. Extinguir un compromiso por vencimiento es una operación, que una política "inicia" puede plantear a MARCO (D56).
 
@@ -285,9 +287,9 @@ Los saldos no tienen verbo propio: cada tipo de hecho declara qué saldos mueve 
 
 No hay umbrales, aprobaciones ni ofertas exigidas. Eso es política (D4). El contrato solo declara lo que la operación es y lo que cambia.
 
-**[P5]** ¿El contrato solo valida tipos y todo lo demás es política? (Técnica.)
+**[P5]** Resuelto (D65): el contrato valida el tipo de cada entrada, que cada referencia exista en la empresa con el tipo declarado y que cada verbo aplique a su objetivo. Todo lo demás es política.
 
-**[P6]** Hipótesis a probar: si los efectos están declarados, un ejecutor general los aplica y la mayoría de las operaciones no necesitan código propio. `:op/impl` sería opcional, solo para integraciones externas (DTE al SII, cartola bancaria) y algoritmos (FIFO, MRP). (Técnica.)
+**[P6]** Resuelto en la etapa 3 (D66): un ejecutor general aplica los efectos declarados, y las siete operaciones corren sin código propio. `:op/impl` queda opcional, solo para integraciones externas (DTE al SII, cartola bancaria) y algoritmos (FIFO, MRP).
 
 ## 6. Políticas
 
@@ -394,7 +396,7 @@ Al guardar una política, el validador busca choques con las vigentes (D35): dos
 | `:fecha-del-paso` | La vigente en cada paso (típica de lo tributario) |
 | `:cierre-del-periodo` | La vigente al último cierre; un cambio rige desde el cierre siguiente (D44) |
 
-Las legales traen la opción fijada por el equipo.
+Las legales traen la opción fijada por el equipo. Una política sin `:aplica-con` usa `:fecha-del-paso` (D70).
 
 ## 7. Objetivos, caminos y resolvedor
 
@@ -439,16 +441,21 @@ Para cada requisito, uno de cinco estados: los cuatro que pide el criterio 4 de 
 
 El `:estado` general es `:listo` si no queda nada pendiente ni indeterminado, `:bloqueado` si queda algo, y `:prohibido` si la operación misma está prohibida.
 
+Además, cada requisito que viene de una política dice cuál (`:politica`), y uno pendiente dice cuántos faltan (`:faltan`) y qué entrada de la operación objetivo llena el paso (`:entrega`, D71). Una entrada que falta o no calza con el contrato es un requisito pendiente con `:pide` y, si no calza, `:problema` (D65). La respuesta dice también si hace falta confirmar (`:confirmacion :requerida` o `:eximida`) y a qué caso pertenece la operación (`:caso`).
+
 ```clojure
 {:objetivo  {:operacion :compras/emitir-orden ...}
  :estado    :bloqueado
  :requisitos
- [{:id :precio      :estado :indeterminado :pide [:entrada/precio-unitario]}
-  {:id :solicitud   :estado :pendiente :via :compras/registrar-solicitud :quien actor}
-  {:id :ofertas     :estado :pendiente :faltan 2 :via :compras/registrar-oferta}
-  {:id :aprobacion  :estado :pendiente :via :compras/aprobar :quien [:rol :jefe-compras]
-   :no-puede actor}]
- :reglas    {:empresa-b/compra-formal 3 :empresa-b/segregacion 1}}
+ [{:id :compras/solicitud  :politica :empresa-b/compra-formal :estado :pendiente :faltan 1
+   :via :compras/registrar-solicitud :quien :cualquiera :entrega :entrada/solicitud}
+  {:id :compras/oferta     :politica :empresa-b/compra-formal :estado :pendiente :faltan 2
+   :via :compras/registrar-oferta :quien :cualquiera :entrega :entrada/oferta}
+  {:id :compras/aprobacion :politica :empresa-b/compra-formal :estado :pendiente :faltan 1
+   :via :compras/aprobar :quien [:rol :jefe-compras] :no-puede :persona/ana}]
+ :confirmacion :requerida
+ :caso      nil
+ :reglas    {:empresa-b/compra-formal 3}}
 ```
 
 En la Empresa A, que no tiene `compra-formal`, la misma consulta devuelve la solicitud y la oferta como `:opcional`: el contrato las admite y nada las exige.

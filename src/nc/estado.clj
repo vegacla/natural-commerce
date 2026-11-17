@@ -1,0 +1,124 @@
+(ns nc.estado
+  "La vista que MARCO tiene de una empresa: su catálogo, su estado en el almacén
+  y las políticas que rigen cada operación en cada caso. Arma el contexto con
+  que el evaluador (nc.expresion) lee entidades, hechos y compromisos.
+
+  Una operación en curso todavía no escribe nada: lo que ya produjo va en
+  `pendientes` ({:hechos {id doc} :compromisos {id doc}}), y las lecturas lo ven
+  por encima del almacén."
+  (:require [nc.almacen :as alm]
+            [nc.esquema :as esq]))
+
+(defn abrir
+  "Lo que MARCO necesita para actuar en una empresa."
+  [almacen catalogo empresa]
+  {:almacen almacen :catalogo catalogo :empresa empresa})
+
+;; --- Lectura -------------------------------------------------------------------
+
+(defn leer
+  "Un documento por su identificador: hecho o compromiso si es un uuid, entidad
+  si no. Nil si no existe en la empresa."
+  ([estado id] (leer estado {} id))
+  ([{:keys [almacen empresa]} pendientes id]
+   (if (uuid? id)
+     (or (get-in pendientes [:hechos id])
+         (get-in pendientes [:compromisos id])
+         (alm/leer almacen empresa :hechos id)
+         (alm/leer almacen empresa :compromisos id))
+     (alm/leer almacen empresa :entidades id))))
+
+(defn- coincide? [doc filtro] (every? (fn [[k x]] (= x (get doc k))) filtro))
+
+(defn- buscar-con
+  "Documentos que coinciden con un filtro de claves simples ({:tipo t :caso c}),
+  con lo pendiente de la operación en lugar de su versión guardada."
+  [{:keys [almacen empresa]} pendientes tabla prefijo filtro]
+  (let [filtro (update-keys filtro #(keyword prefijo (name %)))
+        id     (keyword prefijo "id")]
+    (into (filterv #(coincide? % filtro) (vals pendientes))
+          (remove #(contains? pendientes (id %)))
+          (alm/buscar almacen empresa tabla filtro))))
+
+(defn- con-rol [{:keys [almacen empresa]} rol]
+  (->> (alm/buscar almacen empresa :entidades {:entidad/tipo :persona})
+       (filter #(contains? (set (:persona/roles %)) rol))
+       (mapv :entidad/id)))
+
+(defn contexto
+  "Contexto de evaluación con estas referencias. `traza` acumula las versiones de
+  los conceptos usados (D48); una operación usa una sola."
+  ([estado refs] (contexto estado refs {} (atom {})))
+  ([estado refs pendientes traza]
+   {:refs        refs
+    :buscar      #(leer estado pendientes %)
+    :hechos      #(buscar-con estado (:hechos pendientes) :hechos "hecho" %)
+    :compromisos #(buscar-con estado (:compromisos pendientes) :compromisos "compromiso" %)
+    :concepto    #(get-in estado [:catalogo :conceptos %])
+    :rol         #(con-rol estado %)
+    :traza       traza}))
+
+;; --- Caso ------------------------------------------------------------------------
+
+(defn caso-de
+  "El compromiso raíz del caso de una operación (D15, D68): el de la primera
+  entrada, en el orden del contrato, que apunta a un compromiso o a un hecho de
+  un caso. Nil si ninguna lo hace; entonces el primer compromiso que la operación
+  abra será la raíz."
+  [estado contrato entradas]
+  (some (fn [[k]]
+          (let [x (get entradas k)]
+            (when (uuid? x)
+              (when-let [raiz (some-> (leer estado x) ((some-fn :compromiso/raiz :hecho/caso)))]
+                (leer estado raiz)))))
+        (esq/campos-ordenados (:op/entradas contrato))))
+
+;; --- Políticas -------------------------------------------------------------------
+
+(defn vigentes
+  "Las políticas de la empresa en la versión que rige hoy."
+  [{:keys [almacen empresa]}]
+  (alm/buscar almacen empresa :politicas {}))
+
+(defn- version [{:keys [almacen empresa]} id v]
+  (some #(when (= v (:politica/version %)) %) (alm/historia almacen empresa :politicas id)))
+
+(defn- aplica-a? [politica op]
+  (let [a (:politica/aplica-a politica)]
+    (or (= a op) (and (set? a) (contains? a op)))))
+
+(defn politicas
+  "Las políticas que rigen `op` en un caso, cada una en la versión que elige su
+  `:aplica-con` (D50). Sin `:aplica-con`, la del día del paso (D70)."
+  [estado op caso]
+  (let [del-caso (:compromiso/reglas caso)]
+    (keep (fn [{:politica/keys [id aplica-con] :as p}]
+            (case (or aplica-con :fecha-del-paso)
+              :fecha-del-paso  p
+              ;; Sin caso, la vigente. Con caso, la anotada en su raíz; si no está
+              ;; anotada, la política no existía al abrirlo y no le aplica.
+              :inicio-del-caso (cond
+                                 (nil? caso)                                p
+                                 (= (get del-caso id) (:politica/version p)) p
+                                 (get del-caso id)                          (version estado id (get del-caso id)))
+              (throw (ex-info (str "Opción de vigencia no implementada: " aplica-con)
+                              {:nc/error :opcion-no-implementada :politica id}))))
+          (filter #(aplica-a? % op) (vigentes estado)))))
+
+(defn reglas-de-inicio
+  "Versiones vigentes de las políticas que se aplican con la del inicio del caso.
+  Se anotan en el compromiso raíz al abrirlo (notación 6.4)."
+  [estado]
+  (into {} (for [p (vigentes estado) :when (= :inicio-del-caso (:politica/aplica-con p))]
+             [(:politica/id p) (:politica/version p)])))
+
+;; --- Catálogo --------------------------------------------------------------------
+
+(defn registradora
+  "La operación que registra hechos de un tipo: con ella se cumple un \"exige\"."
+  [catalogo tipo-hecho]
+  (some (fn [{:op/keys [id efectos]}]
+          (when (some #(and (vector? %) (= [:registra-hecho tipo-hecho] (take 2 %)))
+                      (tree-seq vector? seq (vec efectos)))
+            id))
+        (vals (:contratos catalogo))))

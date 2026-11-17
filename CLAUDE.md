@@ -6,13 +6,13 @@ Idioma del proyecto: español (documentos, nombres de dominio, conversación).
 
 ## Estado
 
-El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). El siguiente paso es construir el prototipo mínimo.
+El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 3 hechas (E1 a E3); sigue la etapa 4 (E4 y E5).
 
 ## Documentos (leer en este orden)
 
 1. `docs/vision-funcional.md` — la visión original.
 2. `docs/registro-de-decisiones.md` — el modelo en una página (sección 0) y las decisiones, numeradas desde D1. Es la fuente de verdad.
-3. `docs/notacion-v0.md` — notación del núcleo en EDN: primitivos, expresiones, conceptos, contratos, políticas, resolvedor. Sus preguntas están resueltas en la sección 4 del registro, salvo P5 y P6, que se deciden al construir, y P12, que se valida con el prototipo.
+3. `docs/notacion-v0.md` — notación del núcleo en EDN: primitivos, expresiones, conceptos, contratos, políticas, resolvedor. Sus preguntas están resueltas en la sección 4 del registro, salvo P12, que se valida con el prototipo. P5 y P6 se resolvieron en la etapa 3 (D65, D66).
 4. `docs/prototipo-minimo.md` — alcance, escenarios de aceptación E1 a E9, etapas y criterio de salida.
 5. `docs/analisis-universo-operaciones.md` y `docs/analisis/operaciones.csv` — 74 operaciones de ERP clasificadas por primitivos, verbos y formas de política.
 
@@ -32,12 +32,12 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 - Esquemas con Malli. Pruebas: una por escenario de aceptación (E1 a E9).
 - Contratos, conceptos, políticas y caminos son datos EDN, no código.
 - El CLI de Clojure es `deps` (deps.clj, en `~/.local/bin`).
-- XTDB v2 exige JDK 21 o superior. La máquina tiene JDK 17 en el PATH y JDK 21 instalado aparte, en `~/AppData/Local/Programs/Temurin21/jdk-21.0.13+9`. El proyecto usa JDK 21 mediante `JAVA_CMD` (deps.clj ignora `JAVA_HOME` si hay un `java` en el PATH):
-  `JAVA_CMD="C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe" deps -M:test`
+- XTDB v2 exige JDK 21 o superior. La máquina tiene JDK 17 en el PATH y JDK 21 instalado aparte, en `~/AppData/Local/Programs/Temurin21/jdk-21.0.13+9`. El proyecto usa JDK 21 mediante `JAVA_CMD` (deps.clj ignora `JAVA_HOME` si hay un `java` en el PATH).
+- Pruebas: `.\pruebas.ps1` en PowerShell, desde cualquier carpeta; fija `JAVA_CMD` solo mientras corre. En bash: `JAVA_CMD="C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe" deps -M:test`.
 
 ## Código
 
-- `src/nc/valor.clj` — valores con unidad. `src/nc/expresion.clj` — evaluador. `src/nc/validar.clj` — validación al escribir. `src/nc/esquema.clj` — esquemas de contrato, política, concepto, tipo de hecho y camino. `src/nc/catalogo.clj` — carga y valida el catálogo.
+- `src/nc/valor.clj` — valores con unidad. `src/nc/expresion.clj` — evaluador. `src/nc/validar.clj` — validación al escribir. `src/nc/esquema.clj` — esquemas de contrato, política, concepto, tipo de hecho y camino. `src/nc/catalogo.clj` — carga y valida el catálogo. `src/nc/almacen.clj` — hechos, compromisos, saldos y configuración versionada sobre XTDB. `src/nc/estado.clj` — vista de una empresa para MARCO: lecturas, caso y políticas vigentes. `src/nc/resolvedor.clj` — requisitos de un objetivo. `src/nc/ejecutor.clj` — ejecutor general de contratos.
 - `resources/canon/` — canon de la plataforma. `resources/empresas/` — configuración de cada empresa.
 - `docs/mediciones.md` — lo que pide medir la sección 7 del prototipo, por etapa.
 

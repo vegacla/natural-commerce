@@ -1,7 +1,7 @@
 # Natural Commerce — Registro de decisiones
 
 Actualizado: 2026-11-17. Origen: sesión de descubrimiento sobre "Visión funcional de SARA y MARCO".
-Estado: modelo cerrado; siguiente paso, construir el prototipo (Clojure + XTDB).
+Estado: modelo cerrado; prototipo en construcción (Clojure + XTDB), etapas 1 a 3 hechas.
 Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.md`, `notacion-v0.md`.
 
 ## 0. El modelo en una página
@@ -38,7 +38,7 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D12 | MARCO es determinista, no un LLM: planificación basada en acciones, precondiciones y efectos, inspirada en STRIPS/PDDL. "Lo más determinista que se pueda sin dejar de ser inteligente." | El LLM vive solo en SARA. |
 | D13 | MARCO trabaja con caminos definidos, guardados y versionados; recorre todos los caminos definidos y propone. | Modelo tipo "métodos + resolvedor" (cercano a HTN). |
 | D14 | Ante un objetivo sin camino guardado pero con piezas contratadas y compatibles: MARCO arma el plan, el usuario confirma, se ejecuta, y MARCO propone guardarlo como camino reutilizable sujeto a activación. Si una política lo exige, la combinación requiere aprobación previa. | Tener permiso sobre cada pieza no basta: hace falta confirmación, salvo que una política exima (D53). Si faltan capacidades contratadas, no hay nada que armar. |
-| D15 | No existe "el proceso" con principio y fin canónicos. Hay compromisos abiertos que las operaciones crean y extinguen; cuáles los extinguen depende de las capacidades contratadas (ej.: factorizar, pasar a incobrables). | |
+| D15 | No existe "el proceso" con principio y fin canónicos. Hay compromisos abiertos que las operaciones crean y extinguen; cuáles los extinguen depende de las capacidades contratadas (ej.: factorizar, pasar a incobrables). | Cómo se reconoce el caso: D68. |
 | D16 | La inmutabilidad es propiedad del tipo de dato según la obligación que lo rige (contabilidad: solo agregar y revertir). Lo demás puede ser flexible. | |
 | D17 | Cualquier dato debe poder verse como estaba en cualquier fecha, junto con la regla vigente entonces. | Considerado esencial en un ERP. |
 | D18 | Corregir el pasado (distinguir cuándo ocurrió de cuándo se registró) no es prioritario; lo normal es aceptar el error y registrar una operación correctiva. | Sí hace falta tiempo de validez para programar el futuro (H9). |
@@ -81,13 +81,20 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D55 | Expresiones y efectos son dos niveles. Una expresión solo lee. Un efecto es un verbo con expresiones como argumentos; una expresión nunca contiene un efecto. Los efectos tienen su propio condicional (`:cuando`). | Precisa D25: la notación sigue siendo una sola, pero una condición no puede modificar el estado. |
 | D56 | Los verbos son diez: se agrega `:modifica-compromiso`, que cambia los términos de un compromiso sin tocar su saldo (activarlo, ponerle vencimiento, reemplazar su calendario). Va siempre junto al hecho que lo justifica. Ningún compromiso cambia de estado sin una operación. | Amplía D30. Sin él no se podía declarar la activación de un compromiso latente ni el anexo de D45. |
 | D57 | Cada tipo de hecho se declara: sus datos, su régimen de inmutabilidad y los saldos que mueve. | Aplica D16 (el régimen es del tipo de dato, no de la operación) y completa D41. |
-| D58 | Un requisito es opcional cuando el contrato lo admite como entrada opcional y ninguna política lo exige ni lo prohíbe. No hace falta una forma de política para decirlo. | Da origen al estado "opcional" del criterio 4 de la visión. Es D46: lo que la operación admite es contrato; lo que la empresa exige es política. |
+| D58 | Un requisito es opcional cuando el contrato lo admite como entrada opcional y ninguna política lo exige ni lo prohíbe. No hace falta una forma de política para decirlo. | Da origen al estado "opcional" del criterio 4 de la visión. Es D46: lo que la operación admite es contrato; lo que la empresa exige es política. Precisado por D71. |
 | D59 | Vocabulario: **oferta** es lo que un proveedor entrega y lo obliga si se acepta (un compromiso latente). **Cotización** queda para lo que la empresa solicita a proveedores o emite a un cliente. | Amplía D53. La visión llama "cotización" a ambas cosas; el análisis ya las distinguía. |
 | D60 | El prototipo prueba la separación por empresa con un escenario propio (E9). La madurez operativa del almacén se evalúa con una revisión aparte, no con un escenario. E8 prueba el modelo y no decide el stack. | Hace verificable el criterio de salida de `prototipo-minimo.md`. |
 | D61 | Ningún compromiso se abre, modifica, reduce, extingue ni transfiere sin un hecho registrado en la misma operación. | Generaliza D29 y D56. Reservar stock y comprometer presupuesto también registran un hecho. |
 | D62 | Una operación puede registrar varios hechos en la misma transacción (ej.: venta de mostrador: boleta, entrega y cobro). Abre compromisos solo por lo que queda pendiente al terminar. | Resuelve T12 sin un primitivo nuevo. |
 | D63 | Los folios de documentos tributarios son un saldo: la autorización del SII lo aumenta y cada documento emitido lo consume. Una política legal "fija" el número de folio y otra impide emitir sin saldo. | Mismo patrón que presupuesto y cupo (H3). Por verificar con fuentes del SII (D42). |
 | D64 | El prototipo incluye "registrar factura de proveedor" como octava operación: un hecho simple que activa el pago pendiente de la orden. Lo tributario de la factura sigue fuera de alcance. | Sin ella el pago queda latente y E6 no tiene un compromiso activo que reducir. |
+| D65 | El contrato decide si una operación tiene sentido: el tipo de cada entrada, que cada referencia exista en la empresa con el tipo declarado, y que cada verbo aplique a su objetivo (un compromiso extinguido no cambia; `:modifica-compromiso` no toca el saldo). Todo lo demás es política. Una entrada que falta o no calza aparece en el resolvedor como requisito pendiente con `:pide`, sin un estado nuevo. | Resuelve P5. Es D46: el significado de la operación es contrato. |
+| D66 | Un ejecutor general aplica los efectos declarados. Las siete operaciones de la etapa 3 corren sin código propio. `:op/impl` queda para integraciones externas y algoritmos. | Resuelve P6 en el prototipo. E6 lo vuelve a probar con una operación nueva. |
+| D67 | Si ninguna política "permite" aplica a una operación, cualquier persona de la empresa tiene permiso. La empresa restringe el permiso publicando una "permite". | Valor por defecto según D46. Así la Empresa A opera sin políticas (E1). Negar por defecto obligaría a toda empresa a configurar permisos antes de operar. |
+| D68 | El caso de una operación se deduce de sus entradas: es la raíz del primer compromiso o hecho al que apuntan, en el orden en que el contrato las declara. Si ninguna apunta a un caso, el primer compromiso que la operación abre es la raíz. Cada hecho guarda su caso en `:hecho/caso`. | Completa D15: sin instancias de proceso, el caso se reconoce por los datos. |
+| D69 | El saldo de un compromiso son, por defecto, los montos y cantidades de su objeto; el contrato puede declararlo con `:saldo`. Si `:reduce-compromiso` lo deja en cero o menos, el compromiso queda extinguido por cumplimiento en la misma operación. Si puede quedar bajo cero (recibir más de lo ordenado) lo decide una política (D4, E7). | Es el significado del verbo, por lo tanto contrato (D46). |
+| D70 | Una política sin `:aplica-con` se aplica con la versión vigente en cada paso (`:fecha-del-paso`). | Valor por defecto del catálogo de D50. |
+| D71 | Un requisito de una política "exige" dice con qué operación se cumple (`:via`) y, si esa operación tiene una salida que la operación objetivo recibe como entrada, cuál es esa entrada (`:entrega`). Una entrada así deja de ser opcional. | Aplica D10: la salida de una operación es entrada de otra. Es lo que SARA necesita para encadenar pasos (P12). |
 
 ## 2. Criterios para elegir stack
 
@@ -110,7 +117,8 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | # | Resolución |
 |---|---|
 | P1 | Resuelta al construir la etapa 1: operaciones como palabras clave y referencias como símbolos. |
-| P5, P6 | Técnicas. Se deciden al construir el prototipo (etapa 3). |
+| P5 | D65: el contrato valida tipos, referencias y que cada verbo aplique a su objetivo; lo demás es política. |
+| P6 | D66: un ejecutor general basta para las siete operaciones de la etapa 3. |
 | P2 | Bastan tres estados. "Vencido" se calcula; extinguir por vencimiento es una operación (D56). |
 | P3 | Las vías de modificación de un contrato son política legal. |
 | P4 | Precio de referencia por política (sugiere o fija); si no hay, SARA lo pide; se reevalúa al ejecutar. |

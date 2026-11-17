@@ -175,7 +175,7 @@
 
 ;; --- Efectos -----------------------------------------------------------------
 
-(defn- partes
+(defn partes
   "Separa un efecto en verbo, argumentos y el nombre dado con `:como`."
   [[k & resto]]
   (if (= :como (last (butlast resto)))
