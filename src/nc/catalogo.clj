@@ -15,6 +15,15 @@
 
 (defn- por [clave xs] (into {} (map (juxt clave identity)) xs))
 
+(defn- tipos-de-compromiso
+  "Los tipos de compromiso que abren los contratos: a ellos puede apuntar una
+  referencia (D77)."
+  [contratos]
+  (set (for [c  contratos
+             ef (tree-seq vector? seq (vec (:op/efectos c)))
+             :when (and (vector? ef) (= :abre-compromiso (first ef)) (map? (second ef)))]
+         (:tipo (second ef)))))
+
 (defn armar
   "Une varias partes en un catálogo. Los campos de entidad incluyen los que cada
   empresa agrega como extensión (D3)."
@@ -25,6 +34,7 @@
      :tipos-hecho (por :tipo-hecho/id tipos-hecho)
      :conceptos   (por :concepto/id conceptos)
      :contratos   (por :op/id contratos)
+     :tipos-compromiso (tipos-de-compromiso contratos)
      :politicas   (vec politicas)
      :caminos     (vec caminos)
      :campos      (into (apply merge {} (map :entidad/campos entidades))

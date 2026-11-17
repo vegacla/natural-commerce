@@ -1,7 +1,7 @@
 # Natural Commerce — Notación del núcleo, borrador v0
 
 Fecha: 2026-11-16. Etapa 1 del prototipo mínimo. Se apoya en las decisiones del registro.
-Estado: las preguntas marcadas en el texto (P1 a P12) están resueltas en la sección 4 de `registro-de-decisiones.md`, salvo P12, que se valida con el prototipo. P5 y P6 se resolvieron al construir la etapa 3 (D65, D66). Donde difieren, manda el registro.
+Estado: las preguntas marcadas en el texto (P1 a P12) están resueltas en la sección 4 de `registro-de-decisiones.md`, P5 y P6 se resolvieron al construir la etapa 3 (D65, D66) y P12 en la etapa 6 (D78). Donde difieren, manda el registro.
 
 ## 0. Convenciones
 
@@ -9,7 +9,7 @@ Estado: las preguntas marcadas en el texto (P1 a P12) están resueltas en la sec
 - Los nombres llevan espacio de nombres: `:compras/emitir-orden`, `:producto/categoria`.
 - En las expresiones, un vector que empieza con palabra clave es una operación (`[:> a b]`) y un símbolo es una referencia a un dato (`entrada/cantidad`, `actor`, `ahora`).
 - Todo lo que cambia en operación (conceptos, políticas, caminos) lleva `:version` y `:rige-desde`. Los contratos de operación cambian solo con un despliegue (D11).
-- Los tipos (`[:ref :proveedor]`, `[:map ...]`) usan la sintaxis de Malli y no son expresiones.
+- Los tipos (`[:ref :proveedor]`, `[:map ...]`) usan la sintaxis de Malli y no son expresiones. Una referencia nombra el tipo de lo que apunta: una entidad, un tipo de hecho o un tipo de compromiso (`[:ref :compras/necesidad]`, D77).
 - Un valor con unidad se escribe siempre con ella, en datos y en expresiones: `[:monto 500000 :CLP]`, `[:cantidad 20 :un]`. Un número suelto no es un monto ni una cantidad.
 - Todo valor calculado que se guarda lleva la versión de lo que lo calculó (D48). La referencia tiene una sola forma, un mapa de identificador a versión, en `:hecho/reglas`, `:compromiso/reglas`, `:saldo/reglas` y `:camino/reglas`. El mapa incluye políticas y conceptos.
 
@@ -231,8 +231,8 @@ Una capacidad publica sus conceptos. El catálogo de cada empresa reúne los del
                 [:producto [:ref :producto]]
                 [:cantidad :cantidad]
                 [:precio-unitario :monto]
-                [:solicitud {:optional true} [:ref :compromiso]]
-                [:oferta {:optional true} [:ref :compromiso]]]
+                [:solicitud {:optional true} [:ref :compras/necesidad]]
+                [:oferta {:optional true} [:ref :compras/oferta-vigente]]]
  :op/salidas   {:orden orden/id}             ; nombre → expresión; el tipo se deduce (D10)
  :op/efectos
  [[:registra-hecho :compras/orden entrada :como orden]
@@ -464,7 +464,7 @@ En la Empresa A, que no tiene `compra-formal`, la misma consulta devuelve la sol
 
 SARA convierte esta respuesta en conversación, formularios y botones. No necesita conocer la operación.
 
-**[P12]** ¿Basta la respuesta del resolvedor para que SARA genere la interfaz sin conocer la operación? Se valida con el prototipo: etapa 6 (SARA mínima) y E6.
+**[P12]** Resuelto en la etapa 6 (D78): la respuesta del resolvedor basta junto con el contrato, que da el tipo de cada campo. SARA mínima genera formularios, avisos, tablas y el paso siguiente sin código propio para ninguna operación.
 
 ## 8. Caso completo: Empresa B compra 20 P-100
 

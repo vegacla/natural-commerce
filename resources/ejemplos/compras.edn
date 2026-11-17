@@ -1,0 +1,82 @@
+;; Datos de ejemplo para explorar el prototipo (etapa 6). Las dos empresas de la
+;; visión, con los mismos datos maestros y casos en distintas etapas.
+;;
+;; Cada paso es una operación que se ejecuta con confirmación. `:como` nombra sus
+;; salidas; `[:salida nombre clave]` usa la salida de un paso anterior y
+;; `[:en-dias n]`, una fecha a n días de hoy.
+
+{:empresas
+ {:empresa-a {}
+  :empresa-b {:configuracion "empresas/empresa-b.edn"}}
+
+ :entidades
+ [{:entidad/id :P-100 :entidad/tipo :producto :producto/codigo "P-100" :producto/nombre "Filtro de aceite"
+   :producto/categoria :insumos :producto/unidad :un}
+  {:entidad/id :P-200 :entidad/tipo :producto :producto/codigo "P-200" :producto/nombre "Guantes de nitrilo"
+   :producto/categoria :insumos :producto/unidad :un}
+  {:entidad/id :P-300 :entidad/tipo :producto :producto/codigo "P-300" :producto/nombre "Rodamiento 6204"
+   :producto/categoria :repuestos :producto/unidad :un}
+  {:entidad/id :proveedor/acme :entidad/tipo :proveedor :proveedor/nombre "Acme"}
+  {:entidad/id :proveedor/beta :entidad/tipo :proveedor :proveedor/nombre "Beta"}
+  {:entidad/id :proveedor/gamma :entidad/tipo :proveedor :proveedor/nombre "Gamma"}
+  {:entidad/id :bodega/central :entidad/tipo :bodega :bodega/nombre "Central"}
+  {:entidad/id :bodega/norte :entidad/tipo :bodega :bodega/nombre "Norte"}
+  {:entidad/id :persona/ana :entidad/tipo :persona :persona/nombre "Ana"}
+  {:entidad/id :persona/luis :entidad/tipo :persona :persona/nombre "Luis" :persona/roles #{:jefe-compras}}
+  {:entidad/id :persona/marta :entidad/tipo :persona :persona/nombre "Marta" :persona/roles #{:jefe-compras}}]
+
+ :pasos
+ [;; Empresa A, compra 1: orden directa, recibida en parte.
+  {:empresa :empresa-a :actor :persona/ana :op :compras/emitir-orden :como :a-1
+   :entradas {:proveedor :proveedor/acme :producto :P-100 :cantidad [:cantidad 20 :un]
+              :precio-unitario [:monto 30000 :CLP]}}
+  {:empresa :empresa-a :actor :persona/ana :op :compras/registrar-recepcion
+   :entradas {:orden [:salida :a-1 :orden] :producto :P-100 :bodega :bodega/central
+              :cantidad [:cantidad 12 :un]}}
+
+  ;; Empresa A, compra 2: recibida, facturada y pagada en parte.
+  {:empresa :empresa-a :actor :persona/ana :op :compras/emitir-orden :como :a-2
+   :entradas {:proveedor :proveedor/beta :producto :P-200 :cantidad [:cantidad 50 :un]
+              :precio-unitario [:monto 4500 :CLP]}}
+  {:empresa :empresa-a :actor :persona/ana :op :compras/registrar-recepcion
+   :entradas {:orden [:salida :a-2 :orden] :producto :P-200 :bodega :bodega/norte
+              :cantidad [:cantidad 50 :un]}}
+  {:empresa :empresa-a :actor :persona/ana :op :compras/registrar-factura
+   :entradas {:orden [:salida :a-2 :orden] :monto [:monto 225000 :CLP] :vencimiento [:en-dias 30]}}
+  {:empresa :empresa-a :actor :persona/ana :op :compras/registrar-pago
+   :entradas {:orden [:salida :a-2 :orden] :monto [:monto 100000 :CLP]}}
+
+  ;; Empresa B, caso 1: compra formal completa, recibida en parte.
+  {:empresa :empresa-b :actor :persona/ana :op :compras/registrar-solicitud :como :b-1
+   :entradas {:producto :P-100 :cantidad [:cantidad 20 :un]}}
+  {:empresa :empresa-b :actor :persona/ana :op :compras/registrar-oferta :como :b-1-acme
+   :entradas {:solicitud [:salida :b-1 :solicitud] :proveedor :proveedor/acme :producto :P-100
+              :cantidad [:cantidad 20 :un] :precio-unitario [:monto 31000 :CLP] :vence [:en-dias 15]}}
+  {:empresa :empresa-b :actor :persona/ana :op :compras/registrar-oferta :como :b-1-beta
+   :entradas {:solicitud [:salida :b-1 :solicitud] :proveedor :proveedor/beta :producto :P-100
+              :cantidad [:cantidad 20 :un] :precio-unitario [:monto 30000 :CLP] :vence [:en-dias 15]}}
+  {:empresa :empresa-b :actor :persona/luis :op :compras/aprobar
+   :entradas {:solicitud [:salida :b-1 :solicitud] :oferta [:salida :b-1-beta :oferta]}}
+  {:empresa :empresa-b :actor :persona/ana :op :compras/emitir-orden :como :b-1-orden
+   :entradas {:proveedor :proveedor/beta :producto :P-100 :cantidad [:cantidad 20 :un]
+              :precio-unitario [:monto 30000 :CLP] :solicitud [:salida :b-1 :solicitud]
+              :oferta [:salida :b-1-beta :oferta]}}
+  {:empresa :empresa-b :actor :persona/ana :op :compras/registrar-recepcion
+   :entradas {:orden [:salida :b-1-orden :orden] :producto :P-100 :bodega :bodega/central
+              :cantidad [:cantidad 12 :un]}}
+
+  ;; Empresa B, caso 2: solicitud y una oferta; faltan otra oferta y la aprobación.
+  {:empresa :empresa-b :actor :persona/ana :op :compras/registrar-solicitud :como :b-2
+   :entradas {:producto :P-200 :cantidad [:cantidad 200 :un]}}
+  {:empresa :empresa-b :actor :persona/ana :op :compras/registrar-oferta
+   :entradas {:solicitud [:salida :b-2 :solicitud] :proveedor :proveedor/gamma :producto :P-200
+              :cantidad [:cantidad 200 :un] :precio-unitario [:monto 4400 :CLP] :vence [:en-dias 10]}}
+
+  ;; Empresa B, caso 3: lo solicitó Luis; él no puede aprobarlo y Marta sí.
+  {:empresa :empresa-b :actor :persona/luis :op :compras/registrar-solicitud
+   :entradas {:producto :P-100 :cantidad [:cantidad 40 :un]}}
+
+  ;; Empresa B: los repuestos no pasan por la compra formal.
+  {:empresa :empresa-b :actor :persona/ana :op :compras/emitir-orden
+   :entradas {:proveedor :proveedor/gamma :producto :P-300 :cantidad [:cantidad 10 :un]
+              :precio-unitario [:monto 15000 :CLP]}}]}

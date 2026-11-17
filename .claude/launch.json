@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sara",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-NoProfile", "-File", "sara.ps1"],
+      "port": 8081
+    }
+  ]
+}

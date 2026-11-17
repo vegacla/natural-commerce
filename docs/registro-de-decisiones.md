@@ -1,7 +1,7 @@
 # Natural Commerce — Registro de decisiones
 
 Actualizado: 2026-11-17. Origen: sesión de descubrimiento sobre "Visión funcional de SARA y MARCO".
-Estado: modelo cerrado; prototipo en construcción (Clojure + XTDB), etapas 1 a 5 hechas (E1 a E9).
+Estado: modelo cerrado; prototipo en construcción (Clojure + XTDB), etapas 1 a 6 hechas (E1 a E9 y SARA mínima).
 Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.md`, `notacion-v0.md`.
 
 ## 0. El modelo en una página
@@ -100,6 +100,8 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D74 | Cada empresa tiene una marca que crece con cada escritura. MARCO lee la marca antes de verificar; la transacción exige que siga igual y la avanza. Si otra escritura se adelantó, nada se escribe y MARCO vuelve a verificar desde el estado nuevo. | Cumple D49 con concurrencia optimista: verificar sobre lo leído equivale a verificar dentro de la transacción. Dos escrituras de una misma empresa nunca se aplican en paralelo; las de empresas distintas no chocan. |
 | D75 | Desactivar una política, un concepto o un camino es retirarlo desde una fecha. Deja de regir, pero su historia queda y se puede ver como regía antes. | Aplica D8 y D17: desactivar no borra. |
 | D76 | Avanzar un plan es la confirmación del usuario (D14): MARCO ejecuta los pasos que ese usuario puede ejecutar y propone los demás, con lo que falta y quién puede hacerlos. Un paso que otra persona cumplió por fuera del plan cuenta como hecho. Al cumplirse el objetivo de un plan deducido, el camino queda como borrador, con las políticas que produjeron sus pasos y sus versiones (D54). | Precisa D51 para varios pasos. Los pasos se deducen a un solo nivel: de los requisitos del objetivo, no de los requisitos de esos pasos. |
+| D77 | Una referencia a un compromiso declara su tipo (`[:ref :compras/necesidad]`), como ya lo hacía una referencia a un hecho. Los tipos de compromiso son los que abren los contratos. `[:ref :compromiso]` queda para cuando sirve cualquiera. | Sin el tipo, el contrato aceptaba una oferta donde va una solicitud (D65) y SARA no podía ofrecer opciones. Se encontró al construir la etapa 6. |
+| D78 | SARA genera la interfaz de una operación con dos cosas: el contrato (entradas y salidas declaradas) y la respuesta del resolvedor. No tiene código propio para ninguna operación. Los textos son plantillas sobre el vocabulario del resolvedor (falta, se registra con, puede hacerlo, cumplido). | Resuelve P12: la respuesta del resolvedor sola no basta, porque no trae el tipo de cada campo; junto con el contrato, sí. |
 
 ## 2. Criterios para elegir stack
 
@@ -132,7 +134,7 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | P9 | Tabla de combinación por forma como valor por defecto, modificable por la empresa. |
 | P10 | Cada política declara con qué versión se aplica a un caso abierto, eligiendo una opción de un catálogo abierto (D50). |
 | P11 | D47. Si una política nueva exige un paso que el camino no tiene, la empresa configura qué ocurre. |
-| P12 | Si la respuesta del resolvedor le basta a SARA para generar la interfaz se valida con el prototipo (etapa 6 y E6). El texto de la pregunta se reconstruyó el 2026-11-17. |
+| P12 | D78: basta junto con el contrato. El texto de la pregunta se reconstruyó el 2026-11-17. |
 
 ## 5. Pendiente
 

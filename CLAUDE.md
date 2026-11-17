@@ -6,7 +6,7 @@ Idioma del proyecto: español (documentos, nombres de dominio, conversación).
 
 ## Estado
 
-El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 5 hechas (E1 a E9); sigue la etapa 6 (SARA mínima).
+El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Falta la revisión de madurez operativa de XTDB (sección 6 de `docs/prototipo-minimo.md`).
 
 ## Documentos (leer en este orden)
 
@@ -33,12 +33,13 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 - Contratos, conceptos, políticas y caminos son datos EDN, no código.
 - El CLI de Clojure es `deps` (deps.clj, en `~/.local/bin`).
 - XTDB v2 exige JDK 21 o superior. La máquina tiene JDK 17 en el PATH y JDK 21 instalado aparte, en `~/AppData/Local/Programs/Temurin21/jdk-21.0.13+9`. El proyecto usa JDK 21 mediante `JAVA_CMD` (deps.clj ignora `JAVA_HOME` si hay un `java` en el PATH).
+- SARA mínima: `.\sara.ps1` en PowerShell y abrir http://localhost:8081. Carga los datos de ejemplo en memoria; se pierden al detenerla.
 - Pruebas: `.\pruebas.ps1` en PowerShell, desde cualquier carpeta; fija `JAVA_CMD` solo mientras corre. En bash: `JAVA_CMD="C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe" deps -M:test`.
 
 ## Código
 
-- `src/nc/valor.clj` — valores con unidad. `src/nc/expresion.clj` — evaluador. `src/nc/validar.clj` — validación al escribir. `src/nc/esquema.clj` — esquemas de contrato, política, concepto, tipo de hecho y camino. `src/nc/catalogo.clj` — carga y valida el catálogo. `src/nc/almacen.clj` — hechos, compromisos, saldos y configuración versionada sobre XTDB. `src/nc/estado.clj` — vista de una empresa para MARCO: lecturas, caso y políticas vigentes. `src/nc/resolvedor.clj` — requisitos de un objetivo. `src/nc/ejecutor.clj` — ejecutor general de contratos. `src/nc/planificador.clj` — planes, caminos y borradores.
-- `resources/canon/` — canon de la plataforma. `resources/empresas/` — configuración de cada empresa.
+- `src/nc/valor.clj` — valores con unidad. `src/nc/expresion.clj` — evaluador. `src/nc/validar.clj` — validación al escribir. `src/nc/esquema.clj` — esquemas de contrato, política, concepto, tipo de hecho y camino. `src/nc/catalogo.clj` — carga y valida el catálogo. `src/nc/almacen.clj` — hechos, compromisos, saldos y configuración versionada sobre XTDB. `src/nc/estado.clj` — vista de una empresa para MARCO: lecturas, caso y políticas vigentes. `src/nc/resolvedor.clj` — requisitos de un objetivo. `src/nc/ejecutor.clj` — ejecutor general de contratos. `src/nc/planificador.clj` — planes, caminos y borradores. `src/nc/sara.clj` — SARA mínima: interfaz como datos. `src/nc/sara/web.clj` — cliente web de SARA. `src/nc/ejemplo.clj` — carga los datos de ejemplo.
+- `resources/canon/` — canon de la plataforma. `resources/empresas/` — configuración de cada empresa. `resources/ejemplos/` — datos de ejemplo para explorar.
 - `docs/mediciones.md` — lo que pide medir la sección 7 del prototipo, por etapa.
 
 ## Forma de trabajo

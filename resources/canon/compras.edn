@@ -33,7 +33,7 @@
 
   {:tipo-hecho/id      :compras/oferta
    :tipo-hecho/datos   [:map
-                        [:solicitud {:optional true} [:ref :compromiso]]
+                        [:solicitud {:optional true} [:ref :compras/necesidad]]
                         [:proveedor [:ref :proveedor]]
                         [:producto [:ref :producto]]
                         [:cantidad :cantidad]
@@ -43,8 +43,8 @@
 
   {:tipo-hecho/id      :compras/aprobacion
    :tipo-hecho/datos   [:map
-                        [:solicitud [:ref :compromiso]]
-                        [:oferta {:optional true} [:ref :compromiso]]]
+                        [:solicitud [:ref :compras/necesidad]]
+                        [:oferta {:optional true} [:ref :compras/oferta-vigente]]]
    :tipo-hecho/regimen :solo-agregar}
 
   {:tipo-hecho/id      :compras/orden
@@ -53,8 +53,8 @@
                         [:producto [:ref :producto]]
                         [:cantidad :cantidad]
                         [:precio-unitario :monto]
-                        [:solicitud {:optional true} [:ref :compromiso]]
-                        [:oferta {:optional true} [:ref :compromiso]]]
+                        [:solicitud {:optional true} [:ref :compras/necesidad]]
+                        [:oferta {:optional true} [:ref :compras/oferta-vigente]]]
    :tipo-hecho/regimen :solo-agregar}
 
   {:tipo-hecho/id      :compras/recepcion
@@ -102,7 +102,7 @@
    :op/capacidad :compras
    :op/tipo      :efecto
    :op/entradas  [:map
-                  [:solicitud {:optional true} [:ref :compromiso]]
+                  [:solicitud {:optional true} [:ref :compras/necesidad]]
                   [:proveedor [:ref :proveedor]]
                   [:producto [:ref :producto]]
                   [:cantidad :cantidad]
@@ -127,8 +127,8 @@
    :op/capacidad :compras
    :op/tipo      :efecto
    :op/entradas  [:map
-                  [:solicitud [:ref :compromiso]]
-                  [:oferta {:optional true} [:ref :compromiso]]]
+                  [:solicitud [:ref :compras/necesidad]]
+                  [:oferta {:optional true} [:ref :compras/oferta-vigente]]]
    :op/salidas   {:aprobacion aprobacion/id}
    :op/efectos
    [[:registra-hecho :compras/aprobacion entrada :como aprobacion]]}
@@ -141,8 +141,8 @@
                   [:producto [:ref :producto]]
                   [:cantidad :cantidad]
                   [:precio-unitario :monto]
-                  [:solicitud {:optional true} [:ref :compromiso]]
-                  [:oferta {:optional true} [:ref :compromiso]]]
+                  [:solicitud {:optional true} [:ref :compras/necesidad]]
+                  [:oferta {:optional true} [:ref :compras/oferta-vigente]]]
    :op/salidas   {:orden orden/id}
    :op/efectos
    [[:registra-hecho :compras/orden entrada :como orden]
@@ -194,7 +194,7 @@
    :op/tipo      :consulta
    :op/entradas  [:map
                   [:orden {:optional true} [:ref :compras/orden]]
-                  [:solicitud {:optional true} [:ref :compromiso]]]
+                  [:solicitud {:optional true} [:ref :compras/necesidad]]]
    :op/salidas   {:hechos      [:hechos {:caso caso/id}]
                   :compromisos [:compromisos {:raiz caso/id}]
                   :reglas      caso/reglas

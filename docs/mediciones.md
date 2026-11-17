@@ -224,3 +224,55 @@ Ninguno nuevo. La verificación atómica de E7 usa lo que XTDB ofrece: un `ASSER
 - Etapa 6: SARA mínima (P12). Necesitará un conjunto de datos de ejemplo explorable.
 - Revisión de madurez operativa de XTDB, incluido respaldar y restaurar la base del prototipo (sección 6 de `prototipo-minimo.md`).
 - Formas sugiere, fija, limita e inicia; opción `:cierre-del-periodo`; verbos de entidad, `:revierte-hecho` y `:transfiere-compromiso`.
+
+## Etapa 6: SARA mínima (2026-11-17)
+
+Formularios, avisos y tablas generados a partir del contrato y del resolvedor, sin LLM. Se valida P12.
+
+### Líneas
+
+| Archivo | Qué hace | Líneas |
+|---|---|---|
+| `src/nc/sara.clj` | Interfaz como datos: campos, opciones, avisos, tablas, paso siguiente | 201 |
+| `src/nc/sara/web.clj` | Cliente web: HTML y servidor HTTP del JDK, sin dependencias | 202 |
+| `src/nc/ejemplo.clj` y `resources/ejemplos/compras.edn` | Carga de los datos de ejemplo: 40 de código y 63 de datos | 103 |
+| Cambios en `resolvedor.clj` y `catalogo.clj` | Referencias a compromisos con tipo (D77) | +10 |
+| **Total del núcleo de MARCO** (etapas 1 a 6) | | **1.575** |
+
+SARA suma 403 líneas, y ninguna es propia de una operación. Una operación nueva cuesta 0 líneas de interfaz: E6 se cumple también del lado de SARA.
+
+Pruebas: 1.014 líneas en total; 6 pruebas nuevas de SARA, que usan los datos de ejemplo. Las 38 pruebas, con 272 comprobaciones, pasan.
+
+### Rodeos al almacén
+
+Ninguno.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente:
+  - **Las referencias a compromisos no tenían tipo** (D77). Se vio al mirar el formulario en el navegador: el campo "Solicitud" ofrecía recepciones, pagos y ofertas. El mismo hueco dejaba al contrato aceptar una oferta donde va una solicitud. Se corrigió en el canon y en el resolvedor.
+  - En el cliente web: dos columnas con el mismo título, un aviso de permiso con claves crudas y nombres de personas como identificadores. Se vieron al recorrer un caso en el navegador.
+
+### Recorrido en el navegador
+
+Con los datos de ejemplo, el caso 2 de la Empresa B se completó desde SARA:
+1. Se registró la segunda oferta.
+2. SARA ofreció por sí sola "Aprobar" y "Emitir orden" como siguientes pasos.
+3. Ana intentó aprobar y quedó prohibido, con las dos razones.
+4. Luis aprobó.
+5. Ana emitió la orden.
+6. La consulta de estado mostró los cinco hechos, los cinco compromisos y lo que falta por recibir.
+
+### Hallazgos de la etapa
+
+- **P12 se responde con un matiz** (D78). La respuesta del resolvedor dice qué falta, con qué operación y quién puede, pero no el tipo de cada campo: eso lo da el contrato. Con ambos, SARA no necesita conocer la operación.
+- **`:entrega` y `:via` hicieron el trabajo del encadenamiento.** SARA marca como obligatoria una entrada que la política exige, dice de qué operación sale, y después de ejecutar ofrece las operaciones que reciben lo que salió (D10).
+- **Los nombres del catálogo no bastan para personas.** Las palabras clave no llevan tildes ("Aprobacion", "Recepcion") ni artículos. Hará falta un catálogo de etiquetas por idioma; es dato, no código.
+- **El LLM no hizo falta para operar.** Lo que SARA necesita para preguntar y explicar ya está en la respuesta del resolvedor. Un LLM agregaría conversación libre sobre lo mismo; la parte opcional de la etapa (exponer las operaciones como herramientas a un modelo) no se construyó.
+
+### Pendiente
+
+- Revisión de madurez operativa de XTDB, incluido respaldar y restaurar la base del prototipo. Es lo único que falta para el criterio de salida.
+- Etiquetas para personas en el catálogo.
+- Exponer las operaciones como herramientas a un modelo (opcional en la etapa 6).

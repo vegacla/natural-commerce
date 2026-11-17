@@ -22,12 +22,13 @@
 
 (defn- existe?
   "Una referencia apunta a algo de la empresa con el tipo declarado: un
-  compromiso, un hecho de ese tipo o una entidad de ese tipo."
+  compromiso o un hecho de ese tipo, o una entidad de ese tipo (D77)."
   [estado tipo id]
   (let [doc (est/leer estado id)]
     (cond
       (nil? doc)                                       false
       (= :compromiso tipo)                             (contains? doc :compromiso/id)
+      (contains? (get-in estado [:catalogo :tipos-compromiso]) tipo) (= tipo (:compromiso/tipo doc))
       (contains? (get-in estado [:catalogo :tipos-hecho]) tipo) (= tipo (:hecho/tipo doc))
       :else                                            (= tipo (:entidad/tipo doc)))))
 
