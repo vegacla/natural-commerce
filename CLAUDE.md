@@ -45,6 +45,7 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 
 ## Forma de trabajo
 
+- Separación por empresa (D80): solo `src/nc/almacen.clj` toca XTDB; toda función pública del almacén recibe la empresa y la valida; ningún código recibe una empresa de afuera sin pasarla por la vista de empresa (`estado.clj`). Al agregar una función pública al almacén, declararla en `test/nc/resguardos_test.clj`.
 - Toda decisión nueva se agrega a `docs/registro-de-decisiones.md` con el número siguiente al último.
 - Lo tributario chileno no está verificado por un experto: construirlo desde fuentes oficiales del SII y marcarlo (D42).
 - Medir lo que pide la sección 7 de `docs/prototipo-minimo.md`: líneas del núcleo frente a líneas por operación, rodeos al almacén, correcciones humanas.

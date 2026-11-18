@@ -1,0 +1,106 @@
+(ns nc.resguardos-test
+  "D80: la separación por empresa (D22) se protege con resguardos en código.
+  Complementa a E9: aquí no se prueban escenarios, sino reglas que impiden que
+  un cambio futuro abra una fuga."
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
+            [clojure.test :refer [deftest is testing use-fixtures]]
+            [nc.almacen :as alm]))
+
+(def ^:dynamic *alm* nil)
+
+(use-fixtures :once
+  (fn [pruebas]
+    (let [a (alm/abrir)]
+      (try (binding [*alm* a] (pruebas))
+           (finally (alm/cerrar a))))))
+
+(defn- error-de [f]
+  (try (f) nil (catch clojure.lang.ExceptionInfo e (:nc/error (ex-data e)))))
+
+;; --- 1. XTDB solo en el almacén -----------------------------------------------
+
+(defn- fuentes [] (filter #(str/ends-with? (str %) ".clj") (file-seq (io/file "src"))))
+
+(deftest solo-el-almacen-toca-xtdb
+  (testing "ningún otro módulo de src requiere xtdb ni lo importa"
+    (let [culpables (for [f (fuentes)
+                          :when (not= "almacen.clj" (.getName f))
+                          :when (re-find #"xtdb\.|XTDB\w*Node|\bxt/" (slurp f))
+                          :when (re-find #"\(:require[^)]*xtdb|\(:import[^)]*xtdb|\[xtdb\." (slurp f))]
+                      (str f))]
+      (is (empty? culpables)))))
+
+;; --- 2 y 3. La empresa es obligatoria y no se pisa -----------------------------
+
+(def ^:private funciones-con-empresa
+  "Cada función pública del almacén, con cómo llamarla con una empresa dada.
+  Una función nueva debe sumarse aquí: la prueba de abajo falla si falta."
+  {'buscar    (fn [a e] (alm/buscar a e :hechos {}))
+   'leer      (fn [a e] (alm/leer a e :hechos :x))
+   'historia  (fn [a e] (alm/historia a e :hechos :x))
+   'marca     (fn [a e] (alm/marca a e))
+   'escribir! (fn [a e] (alm/escribir! a e {}))
+   'publicar! (fn [a e] (alm/publicar! a e :politicas {:politica/id :x :politica/version 1 :politica/rige-desde #inst "2026-01-01"}))
+   'retirar!  (fn [a e] (alm/retirar! a e :politicas :x))
+   'vigente   (fn [a e] (alm/vigente a e :politicas :x))})
+
+(def ^:private sin-empresa #{'abrir 'cerrar})
+
+(deftest toda-funcion-publica-esta-clasificada
+  (let [publicas (set (for [[k v] (ns-publics 'nc.almacen) :when (fn? @v)] k))]
+    (is (= publicas (into (set (keys funciones-con-empresa)) sin-empresa))
+        "una función pública nueva del almacén debe declararse con empresa o sin ella")))
+
+(deftest toda-funcion-exige-empresa
+  (doseq [[nombre llamar] funciones-con-empresa
+          mala [nil "empresa-a" {:id 1} 42]]
+    (is (= :empresa-invalida (error-de #(llamar *alm* mala)))
+        (str nombre " con empresa " (pr-str mala)))))
+
+(deftest el-filtro-no-lleva-empresa
+  (is (= :filtro-con-empresa (error-de #(alm/buscar *alm* :empresa/a :hechos {:empresa :empresa/b})))))
+
+(deftest no-se-escribe-un-documento-de-otra-empresa
+  (let [compromiso {:compromiso/id (random-uuid) :compromiso/tipo :compras/recepcion-pendiente
+                    :compromiso/estado :activo :empresa :empresa/b}]
+    (is (= :documento-ajeno (error-de #(alm/escribir! *alm* :empresa/a {:compromisos [compromiso]}))))))
+
+(deftest no-se-pisa-un-compromiso-ajeno
+  (let [id (random-uuid)
+        mio {:compromiso/id id :compromiso/tipo :compras/recepcion-pendiente :compromiso/estado :activo}]
+    (alm/escribir! *alm* :empresa/b {:compromisos [mio]})
+    (is (= :documento-ajeno
+           (error-de #(alm/escribir! *alm* :empresa/a {:compromisos [(assoc mio :compromiso/estado :extinguido)]}))))
+    (testing "el compromiso de B quedó intacto y A no lo ve"
+      (is (= :activo (:compromiso/estado (first (alm/buscar *alm* :empresa/b :compromisos {:compromiso/id id})))))
+      (is (empty? (alm/buscar *alm* :empresa/a :compromisos {:compromiso/id id}))))))
+
+;; --- 4. Mismos nombres e identificadores en dos empresas -----------------------
+
+(deftest las-lecturas-no-cruzan-empresas
+  (let [id-c (random-uuid)
+        tipo :compras/recepcion-pendiente
+        hecho (fn [id] {:hecho/id id :hecho/tipo :compras/orden :hecho/en #inst "2026-12-04T10:15:00Z"
+                        :hecho/actor :persona/ana :hecho/datos {:producto :P-100}})
+        hid-a (random-uuid) hid-b (random-uuid)
+        politica (fn [v] {:politica/id :compartida/politica :politica/version v
+                          :politica/rige-desde #inst "2026-01-01T00:00:00Z"})]
+    (alm/escribir! *alm* :empresa/a {:hechos [(hecho hid-a)]
+                                     :compromisos [{:compromiso/id id-c :compromiso/tipo tipo :compromiso/estado :activo}]})
+    (alm/escribir! *alm* :empresa/b {:hechos [(hecho hid-b)]})
+    (alm/publicar! *alm* :empresa/a :politicas (politica 1))
+    (alm/publicar! *alm* :empresa/b :politicas (politica 7))
+    (testing "mismo identificador de dominio, datos distintos por empresa"
+      (is (= 1 (:politica/version (alm/vigente *alm* :empresa/a :politicas :compartida/politica))))
+      (is (= 7 (:politica/version (alm/vigente *alm* :empresa/b :politicas :compartida/politica)))))
+    (testing "toda lectura de B sobre datos de A viene vacía"
+      (is (nil? (alm/leer *alm* :empresa/b :compromisos id-c)))
+      (is (empty? (alm/historia *alm* :empresa/b :compromisos id-c)))
+      (is (empty? (alm/historia *alm* :empresa/b :hechos hid-a)))
+      (is (empty? (alm/buscar *alm* :empresa/b :hechos {:hecho/id hid-a})))
+      (is (= #{hid-b} (set (map :hecho/id (alm/buscar *alm* :empresa/b :hechos {}))))))
+    (testing "toda búsqueda devuelve solo documentos de la empresa pedida"
+      (doseq [tabla (keys alm/tablas)
+              e [:empresa/a :empresa/b]]
+        (is (every? #{e} (map :empresa (alm/buscar *alm* e tabla {}))) (str tabla " " e))))))

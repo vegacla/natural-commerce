@@ -7,7 +7,11 @@
   fecha (D17) es consultar los dos en ese instante: opción `:al`.
 
   Una sola base para todas las empresas (D22): todo documento lleva `:empresa`
-  y toda lectura filtra por ella.
+  y toda lectura filtra por ella. Resguardos (D80): este es el único módulo que
+  toca XTDB; toda función pública exige una empresa válida; `buscar` no acepta
+  una empresa dentro del filtro; no se escribe un documento de otra empresa ni se
+  pisa un compromiso ajeno. Los verifican `nc.separacion-test` y
+  `nc.resguardos-test`.
 
   Verificar y aplicar ocurren en una transacción (D49, D74): cada empresa tiene
   una marca que crece con cada escritura. Quien escribe declara la marca que vio
@@ -25,9 +29,10 @@
 (defn- crear-tablas!
   "XTDB crea una tabla con su primera escritura, y su SQL rechaza nombrar una
   tabla que no existe, aunque sea dentro de un ASSERT. Se crea cada tabla con un
-  documento que se borra de inmediato, sin dejar historia."
+  documento que se borra de inmediato, sin dejar historia. El documento lleva la
+  columna `:empresa`, que las comprobaciones de D80 nombran en SQL."
   [nodo]
-  (xt/execute-tx nodo (vec (for [t (keys tablas)] [:put-docs t {:xt/id ::semilla}])))
+  (xt/execute-tx nodo (vec (for [t (keys tablas)] [:put-docs t {:xt/id ::semilla :empresa ::semilla}])))
   (xt/execute-tx nodo (vec (for [t (keys tablas)] [:erase-docs t ::semilla]))))
 
 (defn abrir
@@ -115,13 +120,31 @@
     (or validez al)  (assoc :current-time (or validez al))
     (or registro al) (assoc :snapshot-time (or registro al))))
 
+;; --- Resguardos (D80) ----------------------------------------------------------
+
+(defn- error! [tipo mensaje datos]
+  (throw (ex-info mensaje (assoc datos :nc/error tipo))))
+
+(defn- exigir-empresa!
+  "Toda operación nombra una empresa: un keyword. Nil, texto o un mapa fallan
+  antes de llegar a XTDB, para que una consulta nunca quede sin filtro."
+  [empresa]
+  (when-not (keyword? empresa)
+    (error! :empresa-invalida "Toda operación del almacén exige una empresa (keyword)" {:empresa empresa}))
+  empresa)
+
 ;; --- Lectura -------------------------------------------------------------------
 
 (defn- consulta
-  "Arma una consulta XTQL que trae los documentos de una tabla cuyos campos son
-  iguales a los del filtro."
-  [tabla filtro]
-  (let [ks   (vec (keys filtro))
+  "Arma una consulta XTQL que trae los documentos de una empresa en una tabla,
+  cuyos campos son iguales a los del filtro. La empresa va siempre, y el filtro
+  no puede traer otra."
+  [tabla empresa filtro]
+  (exigir-empresa! empresa)
+  (when (contains? filtro :empresa)
+    (error! :filtro-con-empresa "La empresa no va en el filtro: es un argumento aparte" {:filtro filtro}))
+  (let [filtro (assoc filtro :empresa empresa)
+        ks   (vec (keys filtro))
         syms (mapv #(symbol (str "p" %)) (range (count ks)))]
     (into [(list 'fn syms (list 'from tabla [(zipmap ks syms) '*]))]
           (map filtro ks))))
@@ -130,7 +153,7 @@
   "Documentos de una empresa en una tabla cuyos campos coinciden con `filtro`."
   ([alm empresa tabla filtro] (buscar alm empresa tabla filtro {}))
   ([{:keys [nodo]} empresa tabla filtro opts]
-   (mapv de-xt (xt/q nodo (consulta tabla (assoc filtro :empresa empresa))
+   (mapv de-xt (xt/q nodo (consulta tabla empresa filtro)
                      (opciones-de-consulta opts)))))
 
 (defn leer
@@ -146,6 +169,7 @@
   "Todas las versiones de un documento, con sus dos tiempos, de la más nueva a la
   más antigua."
   [{:keys [nodo]} empresa tabla id]
+  (exigir-empresa! empresa)
   (let [xid (xt-id tabla empresa (if (= :saldos tabla)
                                    {:saldo/concepto (first id) :saldo/clave (second id)}
                                    {(tablas tabla) id}))]
@@ -160,16 +184,17 @@
 
 ;; --- Escritura -----------------------------------------------------------------
 
-(defn- error! [tipo mensaje datos]
-  (throw (ex-info mensaje (assoc datos :nc/error tipo))))
-
 (defn- put [tabla empresa doc & [periodo]]
+  (exigir-empresa! empresa)
+  (when (and (contains? doc :empresa) (not= empresa (:empresa doc)))
+    (error! :documento-ajeno "El documento es de otra empresa" {:empresa empresa :documento-de (:empresa doc)}))
   [:put-docs (merge {:into tabla} periodo)
    (assoc (a-xt doc) :xt/id (xt-id tabla empresa doc) :empresa empresa)])
 
 (defn marca
   "La marca de la empresa: cuántas escrituras lleva. 0 si ninguna."
   [{:keys [nodo]} empresa]
+  (exigir-empresa! empresa)
   (or (:n (first (xt/q nodo [(list 'fn '[id] (list 'from :marcas '[{:xt/id id} n])) (xt-id :marcas empresa {})])))
       0))
 
@@ -181,6 +206,26 @@
        [:sql "ASSERT NOT EXISTS (SELECT 1 FROM marcas WHERE _id = ?)" [id]]
        [:sql "ASSERT EXISTS (SELECT 1 FROM marcas WHERE _id = ? AND n = ?)" [id n]])
      [:put-docs :marcas {:xt/id id :empresa empresa :n (inc n)}]]))
+
+(defn- compromiso-propio
+  "Un compromiso se reemplaza por su nuevo estado, pero solo si el identificador
+  no pertenece a otra empresa: de lo contrario la escritura pisaría sus datos."
+  [empresa compromiso]
+  [[:sql "ASSERT NOT EXISTS (SELECT 1 FROM compromisos FOR ALL VALID_TIME WHERE _id = ? AND empresa <> ?)"
+    [(:compromiso/id compromiso) empresa]]
+   (put :compromisos empresa compromiso)])
+
+(defn- ajenos
+  "Identificadores de compromisos que ya pertenecen a otra empresa."
+  [{:keys [nodo]} empresa compromisos]
+  (vec (for [{id :compromiso/id} compromisos
+             :let [duenos (set (map :empresa (xt/q nodo [(list 'fn '[id]
+                                                               (list 'from :compromisos
+                                                                     {:bind '[{:xt/id id} empresa]
+                                                                      :for-valid-time :all-time}))
+                                                         id])))]
+             :when (seq (disj duenos empresa))]
+         id)))
 
 (defn- hecho-nuevo
   "Un hecho no se modifica (D16): si ya existe, la transacción completa falla."
@@ -200,9 +245,10 @@
   para pruebas, y debe ser posterior al de la última transacción."
   ([alm empresa cambios] (escribir! alm empresa cambios {}))
   ([{:keys [nodo] :as alm} empresa {:keys [hechos compromisos saldos entidades]} {:keys [registro] n :marca}]
+   (exigir-empresa! empresa)
    (let [ops (concat (when n (marca-vista empresa n))
                      (mapcat #(hecho-nuevo empresa %) hechos)
-                     (map #(put :compromisos empresa %) compromisos)
+                     (mapcat #(compromiso-propio empresa %) compromisos)
                      (map #(put :saldos empresa %) saldos)
                      (map #(put :entidades empresa %) entidades))]
      (try
@@ -214,6 +260,9 @@
            (not (re-find #"Assert failed" (str (ex-message e)))) (throw e)
            (and n (not= n (marca alm empresa)))
            (error! :conflicto "Otra escritura cambió el estado de la empresa desde que se leyó" {:marca n})
+           (seq (ajenos alm empresa compromisos))
+           (error! :documento-ajeno "Un compromiso con ese identificador pertenece a otra empresa"
+                   {:compromisos (ajenos alm empresa compromisos)})
            :else
            (error! :hecho-existente "Un hecho no se modifica: ya existe un hecho con ese identificador"
                    {:hechos (map :hecho/id hechos)})))))))
@@ -246,6 +295,7 @@
   ahora). Su historia queda: se puede ver como regía antes (D75)."
   ([alm empresa tabla id] (retirar! alm empresa tabla id {}))
   ([{:keys [nodo]} empresa tabla id {:keys [desde]}]
+   (exigir-empresa! empresa)
    (when-not (versionadas tabla)
      (error! :tabla-no-versionada (str tabla " no tiene versiones") {:tabla tabla}))
    (let [{:keys [tx-id system-time]}
