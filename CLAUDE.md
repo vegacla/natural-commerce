@@ -15,8 +15,9 @@ El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembr
 3. `docs/notacion-v0.md` — notación del núcleo en EDN: primitivos, expresiones, conceptos, contratos, políticas, resolvedor. Sus preguntas están resueltas en la sección 4 del registro, salvo P12, que se valida con el prototipo. P5 y P6 se resolvieron en la etapa 3 (D65, D66).
 4. `docs/prototipo-minimo.md` — alcance, escenarios de aceptación E1 a E9, etapas y criterio de salida.
 5. `docs/revision-xtdb.md` — respaldo, costos y soporte de XTDB; criterio de salida.
-6. `docs/knowledge/` — lo que se aprende implementando: comportamientos de las herramientas, trampas y procedimientos (`README.md` es el índice).
-7. `docs/analisis-universo-operaciones.md` y `docs/analisis/operaciones.csv` — 74 operaciones de ERP clasificadas por primitivos, verbos y formas de política.
+6. `docs/separacion-por-empresa.md` — resguardos de la separación por empresa (D22, D80) y cómo se verifican.
+7. `docs/knowledge/` — lo que se aprende implementando: comportamientos de las herramientas, trampas y procedimientos (`README.md` es el índice).
+8. `docs/analisis-universo-operaciones.md` y `docs/analisis/operaciones.csv` — 74 operaciones de ERP clasificadas por primitivos, verbos y formas de política.
 
 ## Principio de diseño (D46)
 

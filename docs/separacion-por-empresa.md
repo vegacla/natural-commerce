@@ -19,4 +19,4 @@ Una sola base; toda fila lleva `:empresa` y toda lectura filtra por ella. La sep
 
 - Etapa 5: una función de historia no filtraba por empresa; E9 la encontró.
 - Al implementar D80 apareció otro hueco: un compromiso con el identificador de otra empresa pisaba el original.
-- Las bases múltiples de XTDB se evaluaron y descartaron: `xtdb-bases-multiples.md`.
+- Las bases múltiples de XTDB se evaluaron y descartaron: `knowledge/xtdb-bases-multiples.md`.

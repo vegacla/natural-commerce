@@ -30,7 +30,7 @@ $$
 
 ## Por qué se descartó
 
-Migrar `almacen.clj` de la API en proceso a JDBC, costo por base sin medir, y la separación seguiría dependiendo de que solo MARCO arme consultas. Ver D80 y `separacion-por-empresa.md`.
+Migrar `almacen.clj` de la API en proceso a JDBC, costo por base sin medir, y la separación seguiría dependiendo de que solo MARCO arme consultas. Ver D80 y `../separacion-por-empresa.md`.
 
 ## Si se reabre
 
