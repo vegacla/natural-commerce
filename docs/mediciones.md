@@ -1,6 +1,6 @@
 # Natural Commerce — Mediciones del prototipo
 
-Lo que pide medir la sección 7 de `prototipo-minimo.md`, etapa por etapa. Las líneas se cuentan sin blancos ni comentarios.
+Lo que pide medir la sección 7 de `prototipo-minimo.md`, etapa por etapa. Las líneas se cuentan sin blancos ni comentarios. El detalle de cómo se comportan las herramientas (XTDB, JDK, Malli) está en `docs/knowledge/`.
 
 ## Etapa 1: notación y evaluador (2026-11-17)
 

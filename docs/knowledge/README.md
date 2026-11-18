@@ -8,4 +8,7 @@ Regla: si algo cambia el modelo, es una decisión. Si es cómo se comporta una h
 |---|---|
 | `xtdb-bases-multiples.md` | `ATTACH DATABASE` en XTDB 2.2: cómo funciona, límites y por qué se descartó (D80). |
 | `xtdb-trampas.md` | Comportamientos de XTDB 2.2 que costaron tiempo. |
+| `xtdb-bitemporalidad.md` | Validez y registro: qué entrega XTDB y qué hay que resolver. |
+| `xtdb-respaldo.md` | Respaldo y restauración en disco local, y cómo forzar un bloque. |
+| `entorno-jdk.md` | JDK 21, `JAVA_CMD`, opciones de JVM y una trampa de Malli. |
 | `separacion-por-empresa.md` | Cómo se protege la separación por empresa (D22, D80) y cómo se verifica. |
