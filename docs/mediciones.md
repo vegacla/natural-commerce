@@ -43,8 +43,8 @@ Ninguno: la etapa 1 no usa almacén.
 ### Hallazgos de la etapa
 
 - La notación escrita en `notacion-v0.md` pasó por el validador casi sin cambios. Hubo que precisar tres cosas: cómo se ve cada elemento de una colección (`cada/x`), la forma de `:caso` y que una entrada opcional no entregada no es un dato que falta.
-- `[:ref :proveedor]` choca con el `:ref` propio de Malli. Se resolvió reemplazándolo en un registro propio; no cambió la notación.
-- XTDB v2 exige JDK 21 o superior y la máquina tenía JDK 17. Se instaló Temurin 21.0.13 aparte, sin tocar el PATH; las pruebas de la etapa 1 pasan igual con JDK 17 y con JDK 21.
+- `[:ref :proveedor]` choca con el `:ref` de Malli; no cambió la notación (ver `docs/knowledge/entorno-jdk.md`).
+- XTDB v2 exige JDK 21 o superior y la máquina tenía JDK 17; las pruebas de la etapa 1 pasan con ambos (ver `docs/knowledge/entorno-jdk.md`).
 
 ## Etapa 2: hechos y compromisos sobre XTDB (2026-11-17)
 
@@ -68,9 +68,9 @@ Pruebas: 422 líneas en total; 6 pruebas nuevas del almacén. Las 22 pruebas, co
 
 ### Rodeos al almacén
 
-1. **Tablas que no existen.** XTDB crea una tabla con su primera escritura, y su SQL rechaza nombrar una tabla que no existe, incluso dentro de un `ASSERT`. Rodeo: al abrir el almacén se escribe y se borra (sin historia) un documento en cada tabla. 4 líneas.
-2. **Precisión del tiempo de registro.** XTDB registra microsegundos; `java.util.Date`, que usa el núcleo para las fechas del dominio, solo milisegundos. Convertir el tiempo de una transacción a `Date` y consultar `:al` ese instante dejaba fuera la propia transacción. Rodeo: los tiempos de XTDB se devuelven como `Instant`. 6 líneas.
-3. **Versiones publicadas fuera de orden.** Una escritura con `:valid-from` y sin `:valid-to` rige hasta el fin del tiempo, y pisa una versión posterior ya cargada. Rodeo: al publicar una versión se busca la siguiente y se le pone `:valid-to`. 7 líneas. Es semántica bitemporal normal, no un defecto de XTDB, pero el núcleo tuvo que resolverla.
+1. **Tablas que no existen.** 4 líneas (ver `docs/knowledge/xtdb-trampas.md`).
+2. **Precisión del tiempo de registro.** Microsegundos de XTDB frente a milisegundos de `Date`. 6 líneas (ver `docs/knowledge/xtdb-bitemporalidad.md`).
+3. **Versiones publicadas fuera de orden.** 7 líneas (ver `docs/knowledge/xtdb-bitemporalidad.md`).
 
 Ninguno obligó a cambiar el modelo ni la notación.
 
@@ -82,8 +82,8 @@ Ninguno obligó a cambiar el modelo ni la notación.
 ### Hallazgos de la etapa
 
 - La separación por empresa (D22) se hizo con un campo `:empresa` en cada documento y un filtro obligatorio en cada lectura. Los identificadores de políticas, conceptos, caminos y saldos se derivan de la empresa, así que dos empresas pueden usar el mismo nombre. XTDB 2.1 agregó bases de datos múltiples en un nodo, que serían otra forma de separar empresas; queda para evaluar con E9.
-- Toda prueba que use XTDB necesita JDK 21 y las opciones de JVM del alias `:test`. Con el JDK 17 del PATH, las pruebas del almacén no arrancan.
-- Las pruebas usan el reloj real y no fijan el tiempo de registro: XTDB exige que sea creciente, y un tiempo de registro en el futuro deja los datos invisibles para una consulta de hoy.
+- Toda prueba que use XTDB necesita JDK 21 y las opciones de JVM del alias `:test` (ver `docs/knowledge/entorno-jdk.md`).
+- Las pruebas usan el reloj real y no fijan el tiempo de registro (ver `docs/knowledge/xtdb-bitemporalidad.md`).
 
 ## Etapa 3: resolvedor y ejecutor (2026-11-17)
 
@@ -119,7 +119,7 @@ Agregar registrar recepción y consultar estado costó 23 líneas de contrato y 
 
 ### Rodeos al almacén
 
-4. **Símbolos.** XTDB no guarda símbolos de Clojure, y las expresiones de políticas, conceptos y caminos los usan como referencias (`entrada/cantidad`, `actor`). Rodeo: al escribir, cada símbolo se guarda como `{:nc/simbolo "entrada/cantidad"}` y al leer vuelve a ser símbolo. 7 líneas. No cambió la notación.
+4. **Símbolos.** XTDB no los guarda; se convierten al escribir y al leer. 7 líneas, sin cambio de notación (ver `docs/knowledge/xtdb-trampas.md`).
 
 ### Correcciones
 
@@ -201,7 +201,7 @@ Pruebas: 935 líneas en total; 4 pruebas nuevas, una por escenario. Las 32 prueb
 
 ### Rodeos al almacén
 
-Ninguno nuevo. La verificación atómica de E7 usa lo que XTDB ofrece: un `ASSERT` de SQL sobre la marca de la empresa en la misma transacción que los cambios. Retirar una política es un borrado con fecha de validez, que XTDB entrega sin diseño adicional.
+Ninguno nuevo. La verificación atómica de E7 y retirar una política usan lo que XTDB ofrece (ver `docs/knowledge/xtdb-trampas.md` y `xtdb-bitemporalidad.md`).
 
 ### Correcciones
 
@@ -292,8 +292,8 @@ El núcleo de MARCO no cambió. Pruebas: las 40, con 280 comprobaciones, pasan.
 ### Rodeos al almacén
 
 Ninguno en el núcleo. En la prueba, dos cosas que la documentación no dice:
-- En Windows, la ruta del log debe pasarse como `Path`, no como texto: con texto, XTDB la lee como URI y falla.
-- Para forzar un bloque se usa `xtdb.log/send-flush-block-msg!`, que no es una API documentada.
+- En Windows, la ruta del log debe pasarse como `Path` (ver `docs/knowledge/xtdb-respaldo.md`).
+- Para forzar un bloque se usa una API no documentada (ver `docs/knowledge/xtdb-respaldo.md`).
 
 ### Correcciones
 
@@ -302,6 +302,6 @@ Ninguno en el núcleo. En la prueba, dos cosas que la documentación no dice:
 
 ### Hallazgos
 
-- Con el volumen del prototipo no se cerró ningún bloque: todo estaba en el log. Respaldar solo el almacenamiento no habría guardado nada.
-- Sin el log, XTDB se niega a arrancar; con una época nueva recupera lo que estaba en bloques y pierde lo posterior.
+- Con el volumen del prototipo no se cerró ningún bloque: todo estaba en el log (ver `docs/knowledge/xtdb-respaldo.md`).
+- Sin el log, XTDB se niega a arrancar (ver `docs/knowledge/xtdb-respaldo.md`).
 - Criterio de salida: seguir con Clojure y XTDB (D79), con cuatro condiciones antes de datos de clientes.

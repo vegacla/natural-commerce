@@ -34,7 +34,7 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 - Esquemas con Malli. Pruebas: una por escenario de aceptación (E1 a E9).
 - Contratos, conceptos, políticas y caminos son datos EDN, no código.
 - El CLI de Clojure es `deps` (deps.clj, en `~/.local/bin`).
-- XTDB v2 exige JDK 21 o superior. La máquina tiene JDK 17 en el PATH y JDK 21 instalado aparte, en `~/AppData/Local/Programs/Temurin21/jdk-21.0.13+9`. El proyecto usa JDK 21 mediante `JAVA_CMD` (deps.clj ignora `JAVA_HOME` si hay un `java` en el PATH).
+- XTDB v2 exige JDK 21 o superior. El proyecto lo usa mediante `JAVA_CMD`, con el JDK 21 instalado aparte en `~/AppData/Local/Programs/Temurin21/jdk-21.0.13+9` (detalle en `docs/knowledge/entorno-jdk.md`).
 - SARA mínima: `.\sara.ps1` en PowerShell y abrir http://localhost:8081. Carga los datos de ejemplo en memoria; se pierden al detenerla.
 - Pruebas: `.\pruebas.ps1` en PowerShell, desde cualquier carpeta; fija `JAVA_CMD` solo mientras corre. En bash: `JAVA_CMD="C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe" deps -M:test`.
 

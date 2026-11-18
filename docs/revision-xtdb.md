@@ -30,7 +30,7 @@ El nodo que consulta no guarda nada propio y se puede reemplazar. Lo que todaví
 
 - **Con poco volumen, todo vive en el log.** En la primera prueba no se cerró ningún bloque: al detener el nodo, la carpeta de almacenamiento estaba vacía y el log tenía 2 archivos, unos 650 KB. Un respaldo solo del almacenamiento no habría guardado nada. En un nodo local, el log es parte del respaldo, no un complemento.
 - **La pérdida máxima depende de qué se respalda.** Si se respaldan las dos piezas, no se pierde nada. Si se respalda solo el almacenamiento, se pierde hasta el intervalo de cierre de bloque: 15 minutos por defecto, ajustable con `:indexer {:flush-duration ...}`.
-- **Se puede forzar un bloque.** `xtdb.log/send-flush-block-msg!` lo cierra a pedido. La prueba lo usa antes de respaldar el almacenamiento. Sirve para un respaldo programado, pero no es una API documentada para usuarios.
+- **Se puede forzar un bloque**, con una API no documentada para usuarios (detalle en `docs/knowledge/xtdb-respaldo.md`).
 - **La restauración no pide nada al núcleo.** MARCO no tuvo que cambiar: abrir el almacén sobre la copia basta. El único agregado fue `nc.ejemplo/vistas`, para abrir las vistas de las empresas sin volver a cargar los datos.
 - **Ver el pasado no exige restaurar.** La bitemporalidad responde «¿cómo estaba esto el día X?» sin tocar un respaldo. El respaldo queda solo para desastres.
 
