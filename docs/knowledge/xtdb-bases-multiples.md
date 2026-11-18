@@ -1,6 +1,6 @@
 # XTDB 2.2: bases de datos múltiples
 
-Observado el 18 de noviembre de 2026 con XTDB 2.2.0. Resultado: se descartó (D80). Este archivo existe por si se reabre.
+Observado el 18 de noviembre de 2026 con XTDB 2.2.0, al evaluar la condición 4 de D79 (decidida en D80).
 
 ## Cómo funciona
 
@@ -27,11 +27,3 @@ $$
 - **No funciona por la API en proceso.** `ATTACH` vía `xt/execute-tx` termina en `AbstractMethodError` (`visitAttachDatabaseStatement`) y detiene la ingesta del nodo. Con `xt/q` da "not a preparable query". Se necesita el servidor pgwire (`{:server {:port N}}`) y un cliente JDBC (pgjdbc y next.jdbc ya están en el classpath).
 - **No es una frontera de seguridad.** Desde la base de A, `SELECT * FROM empresa_b.public.compras` devuelve los datos de B.
 - `xt.databases` no existe como tabla.
-
-## Por qué se descartó
-
-Migrar `almacen.clj` de la API en proceso a JDBC, costo por base sin medir, y la separación seguiría dependiendo de que solo MARCO arme consultas. Ver D80 y `../separacion-por-empresa.md`.
-
-## Si se reabre
-
-Medir un nodo con 50 a 100 bases (memoria, arranque, respaldo por base), y probar el almacén sobre JDBC con una conexión por empresa.

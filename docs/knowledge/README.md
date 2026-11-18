@@ -2,7 +2,7 @@
 
 Lo que se aprende al implementar y no cabe en una decisión (`../registro-de-decisiones.md`) ni en una medición (`../mediciones.md`): comportamientos de las herramientas, trampas, procedimientos que funcionaron. Un archivo por tema, con fecha y versión de lo observado.
 
-Regla: si algo cambia el modelo, es una decisión. Si es cómo se comporta una herramienta o cómo se hace algo, va aquí. Las reglas de diseño no van aquí: van en el registro de decisiones o en un documento de `docs/`.
+Solo descubrimientos: lo que se observó en el sistema y no era evidente. No van requerimientos, decisiones, reglas de diseño ni documentación general: eso va en el registro de decisiones o en `docs/`. Tampoco planes ni lo que no se probó.
 
 | Archivo | Tema |
 |---|---|
