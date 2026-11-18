@@ -103,6 +103,7 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D77 | Una referencia a un compromiso declara su tipo (`[:ref :compras/necesidad]`), como ya lo hacía una referencia a un hecho. Los tipos de compromiso son los que abren los contratos. `[:ref :compromiso]` queda para cuando sirve cualquiera. | Sin el tipo, el contrato aceptaba una oferta donde va una solicitud (D65) y SARA no podía ofrecer opciones. Se encontró al construir la etapa 6. |
 | D78 | SARA genera la interfaz de una operación con dos cosas: el contrato (entradas y salidas declaradas) y la respuesta del resolvedor. No tiene código propio para ninguna operación. Los textos son plantillas sobre el vocabulario del resolvedor (falta, se registra con, puede hacerlo, cumplido). | Resuelve P12: la respuesta del resolvedor sola no basta, porque no trae el tipo de cada campo; junto con el contrato, sí. |
 | D79 | Se sigue con Clojure y XTDB. Antes de guardar datos de clientes hacen falta cuatro cosas: un log durable y replicado, un almacén de objetos con versionado y un respaldo ensayado, una suscripción de soporte, y evaluar las bases múltiples de XTDB para separar empresas. | Aplica el criterio de salida del prototipo: E1 a E7 y E9 pasan con cuatro rodeos menores, y la revisión de madurez (`revision-xtdb.md`) no encontró impedimentos. Respaldar y restaurar se probó con los datos de ejemplo. |
+| D80 | La cuarta condición de D79 (bases múltiples de XTDB) se descarta: se mantiene una sola base con separación por empresa (D22). En su lugar, la separación se protege con resguardos en código y reglas: filtro por empresa en un solo lugar, pruebas que fallan si se quita, y una regla que impide consultas sin empresa. | Una evaluación con XTDB 2.2 mostró que cada empresa en su base aísla las consultas sin calificar, pero exige migrar el almacén de la API en proceso a JDBC, no es frontera de seguridad (un nombre calificado cruza bases) y su costo por empresa no está medido. Basta filtrar bien. |
 
 ## 2. Criterios para elegir stack
 
@@ -139,5 +140,6 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 
 ## 5. Pendiente
 
-- Las cuatro condiciones de D79, antes de datos de clientes.
+- Tres condiciones de D79 (log durable y replicado, almacén de objetos con respaldo ensayado, soporte), antes de datos de clientes. La cuarta se resolvió con D80.
+- Resguardos de la separación por empresa (D80).
 - Paquete legal chileno inicial, desde fuentes del SII.

@@ -68,6 +68,6 @@ La revisión no encuentra impedimentos para seguir con XTDB. Encuentra condicion
 1. **Log durable y replicado.** Kafka u otro equivalente, no el log local. Hoy el log guarda todo lo que no pasó a un bloque.
 2. **Almacén de objetos con versionado** y un procedimiento de respaldo ensayado: almacenamiento primero, log después, con una restauración de prueba periódica.
 3. **Suscripción de soporte**, al menos Developer Edition, por el riesgo de proveedor único.
-4. **Separación por empresa estructural.** Evaluar las bases múltiples de XTDB 2.1 (hallazgo de E9).
+4. ~~**Separación por empresa estructural.** Evaluar las bases múltiples de XTDB 2.1 (hallazgo de E9).~~ Evaluada y descartada (D80): se mantiene una sola base y se refuerza el filtrado con resguardos en código y reglas.
 
 Con E1 a E7 y E9 pasando sin rodeos importantes, la sección 8 del prototipo indica seguir con Clojure y XTDB (D79).
