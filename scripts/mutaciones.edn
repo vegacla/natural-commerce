@@ -1,0 +1,88 @@
+;; Mutaciones de los resguardos (D80, D82 y siguientes). Cada una rompe un
+;; resguardo y alguna prueba debe fallar. Las corre scripts/mutaciones.clj.
+;;   :buscar y :poner  reemplazan la primera aparición del texto
+;;   :agregar          agrega el texto al final del archivo
+[
+ {:nombre "historia sin filtro de empresa"
+  :archivo "src/nc/almacen.clj"
+  :buscar "{:bind '[{:xt/id id :empresa e} * xt/valid-from"
+  :poner "{:bind '[{:xt/id id} * xt/valid-from"}
+ {:nombre "consulta sin empresa"
+  :archivo "src/nc/almacen.clj"
+  :buscar "(let [filtro (assoc filtro :empresa empresa)"
+  :poner "(let [filtro filtro"}
+ {:nombre "sin exigir-empresa en marca"
+  :archivo "src/nc/almacen.clj"
+  :buscar "  (exigir-empresa! empresa)\n  (or (:n"
+  :poner "  (or (:n"}
+ {:nombre "sin comprobar compromiso ajeno"
+  :archivo "src/nc/almacen.clj"
+  :buscar "[[:sql \"ASSERT NOT EXISTS (SELECT 1 FROM compromisos FOR ALL VALID_TIME WHERE _id = ? AND empresa <> ?)\"\n    [(:compromiso/id compromiso) empresa]]\n   (put :compromisos empresa compromiso nil decision)]"
+  :poner "[(put :compromisos empresa compromiso nil decision)]"}
+ {:nombre "filtro con empresa permitido"
+  :archivo "src/nc/almacen.clj"
+  :buscar "(when (contains? filtro :empresa)"
+  :poner "(when false"}
+ {:nombre "el almacén escribe sin decisión"
+  :archivo "src/nc/almacen.clj"
+  :buscar "   (exigir-decision! cambios)\n"
+  :poner ""}
+ {:nombre "un rechazo no queda en la bitácora"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "(assoc resolucion :estado r :decision (anotar! estado plan r opts))"
+  :poner "(assoc resolucion :estado r)"}
+ {:nombre "se ejecuta sin confirmación"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "    (and (not confirmado) (= :requerida (:confirmacion resolucion))) :por-confirmar\n"
+  :poner ""}
+ {:nombre "aplicar! no revisa que el plan esté listo"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "    (not= :listo (:estado resolucion))                               (:estado resolucion)\n"
+  :poner ""}
+ {:nombre "una operación fuera del plan se ejecuta"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(vec (concat (when-not en-plan?"
+  :poner "(vec (concat (when false"}
+ {:nombre "una entidad desactivada se puede usar"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(false? (:entidad/activa (est/leer estado valor)))"
+  :poner "false"}
+ {:nombre "sugiere no llena la entrada"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(if (or (nil? x) (some? (get-in r [:entradas k])) (contains? fijas k))"
+  :poner "(if true"}
+ {:nombre "fija acepta otro valor"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(and (some? dado) (not (v/igual? dado x)))"
+  :poner "false"}
+ {:nombre "limita no prohíbe"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar ":else (assoc base :estado :prohibido"
+  :poner ":else (assoc base :estado :satisfecho"}
+ {:nombre "inicia no se dispara"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "p (est/de-evento estado [:registra (:hecho/tipo h)])"
+  :poner "p []"}
+ {:nombre "MARCO se confirma a sí mismo"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "{:origen :marco :profundidad (inc profundidad)}"
+  :poner "{:origen :marco :confirmado true :profundidad (inc profundidad)}"}
+ {:nombre "dos fija no chocan"
+  :archivo "src/nc/politicas.clj"
+  :buscar "c [(fija-contra-fija p q) (exige-contra-prohibe estado p q)]"
+  :poner "c [(exige-contra-prohibe estado p q)]"}
+ {:nombre "la empresa edita una legal"
+  :archivo "src/nc/politicas.clj"
+  :buscar "(and (= :empresa autor) (or (legal? p) (legal? anterior)))"
+  :poner "false"}
+ {:nombre "la combinación de la empresa se ignora"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(if (= :basta-una (est/combinacion estado :exime))"
+  :poner "(if false"}
+ {:nombre "web.clj requiere xtdb"
+  :archivo "src/nc/sara/web.clj"
+  :buscar "(:require"
+  :poner "(:require [xtdb.api :as xt]"}
+ {:nombre "sara.clj llama a alm/escribir!"
+  :archivo "src/nc/sara.clj"
+  :agregar "\n(comment (alm/escribir! nil nil {}))\n"}]

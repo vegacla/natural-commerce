@@ -46,7 +46,7 @@
   ([config]
    (let [nodo (xtn/start-node config)]
      (crear-tablas! nodo)
-     {:nodo nodo})))
+     {:nodo nodo :ultimo (atom nil)})))
 
 (defn cerrar [{:keys [nodo]}] (.close ^java.lang.AutoCloseable nodo))
 
@@ -122,12 +122,28 @@
 
 ;; --- Tiempos -------------------------------------------------------------------
 
+(defn- registrar!
+  "Anota el tiempo de registro de la última escritura de este almacén."
+  [{:keys [ultimo]} system-time]
+  (let [i (a-instante system-time)]
+    (swap! ultimo #(if (and % (.isAfter ^Instant % i)) % i))
+    i))
+
+(defn- ahora
+  "El tiempo de validez de una lectura sin fecha: el reloj, o la última escritura
+  si el reloj no la alcanza. Un dato rige desde su tiempo de registro; leer con
+  un reloj que no llega a él no ve lo que se acaba de escribir (ver
+  knowledge/xtdb-bitemporalidad.md)."
+  [{:keys [ultimo]}]
+  (let [n (Instant/now) u @ultimo]
+    (if (and u (.isAfter ^Instant u n)) u n)))
+
 (defn- opciones-de-consulta
   "`:al t` ve el dato como era en t: lo que regía en t, según lo que se sabía en
-  t. `:validez` y `:registro` fijan cada eje por separado."
-  [{:keys [al validez registro]}]
-  (cond-> {}
-    (or validez al)  (assoc :current-time (or validez al))
+  t. `:validez` y `:registro` fijan cada eje por separado. Sin fecha de
+  validez, la de `ahora`."
+  [alm {:keys [al validez registro]}]
+  (cond-> {:current-time (or validez al (ahora alm))}
     (or registro al) (assoc :snapshot-time (or registro al))))
 
 ;; --- Resguardos (D80) ----------------------------------------------------------
@@ -162,9 +178,9 @@
 (defn buscar
   "Documentos de una empresa en una tabla cuyos campos coinciden con `filtro`."
   ([alm empresa tabla filtro] (buscar alm empresa tabla filtro {}))
-  ([{:keys [nodo]} empresa tabla filtro opts]
+  ([{:keys [nodo] :as alm} empresa tabla filtro opts]
    (mapv de-xt (xt/q nodo (consulta tabla empresa filtro)
-                     (opciones-de-consulta opts)))))
+                     (opciones-de-consulta alm opts)))))
 
 (defn leer
   "Un documento por su identificador de dominio, o nil."
@@ -204,9 +220,10 @@
 
 (defn marca
   "La marca de la empresa: cuántas escrituras lleva. 0 si ninguna."
-  [{:keys [nodo]} empresa]
+  [{:keys [nodo] :as alm} empresa]
   (exigir-empresa! empresa)
-  (or (:n (first (xt/q nodo [(list 'fn '[id] (list 'from :marcas '[{:xt/id id} n])) (xt-id :marcas empresa {})])))
+  (or (:n (first (xt/q nodo [(list 'fn '[id] (list 'from :marcas '[{:xt/id id} n])) (xt-id :marcas empresa {})]
+                       {:current-time (ahora alm)})))
       0))
 
 (defn- marca-vista
@@ -295,7 +312,7 @@
      (try
        (let [{:keys [tx-id system-time]} (xt/execute-tx nodo (vec ops)
                                                         (cond-> {} registro (assoc :system-time registro)))]
-         {:tx tx-id :registro (a-instante system-time)})
+         {:tx tx-id :registro (registrar! alm system-time)})
        (catch Exception e
          (cond
            (not (re-find #"Assert failed" (str (ex-message e)))) (throw e)
@@ -313,10 +330,10 @@
   por MARCO. Es lo único que se escribe sin decisión (D82): no son hechos,
   compromisos ni saldos. Una entidad creada o cambiada por una operación pasa
   por `escribir!`."
-  [{:keys [nodo]} empresa entidades]
+  [{:keys [nodo] :as alm} empresa entidades]
   (exigir-empresa! empresa)
   (let [{:keys [tx-id system-time]} (xt/execute-tx nodo (mapv #(put :entidades empresa %) entidades))]
-    {:tx tx-id :registro (a-instante system-time)}))
+    {:tx tx-id :registro (registrar! alm system-time)}))
 
 (defn publicar!
   "Publica una versión de una política, concepto o camino, vigente desde su
@@ -339,20 +356,20 @@
      (let [{:keys [tx-id system-time]}
            (xt/execute-tx nodo [(put tabla empresa doc periodo)]
                           (cond-> {} registro (assoc :system-time registro)))]
-       {:tx tx-id :registro (a-instante system-time)}))))
+       {:tx tx-id :registro (registrar! alm system-time)}))))
 
 (defn retirar!
   "Una política, concepto o camino deja de regir desde `:desde` (por defecto,
   ahora). Su historia queda: se puede ver como regía antes (D75)."
   ([alm empresa tabla id] (retirar! alm empresa tabla id {}))
-  ([{:keys [nodo]} empresa tabla id {:keys [desde]}]
+  ([{:keys [nodo] :as alm} empresa tabla id {:keys [desde]}]
    (exigir-empresa! empresa)
    (when-not (versionadas tabla)
      (error! :tabla-no-versionada (str tabla " no tiene versiones") {:tabla tabla}))
    (let [{:keys [tx-id system-time]}
          (xt/execute-tx nodo [[:delete-docs {:from tabla :valid-from (or desde (Date.))}
                                (xt-id tabla empresa {(tablas tabla) id})]])]
-     {:tx tx-id :registro (a-instante system-time)})))
+     {:tx tx-id :registro (registrar! alm system-time)})))
 
 (defn vigente
   "La versión de una política, concepto o camino que rige en `:al` (o ahora), según

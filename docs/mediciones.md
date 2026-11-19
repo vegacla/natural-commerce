@@ -391,7 +391,9 @@ Ninguno. Las tablas son otra tabla versionada, como las políticas.
 
 `scripts/mutaciones.py` suma ocho mutaciones (sugiere no llena, fija acepta otro valor, limita no prohíbe, inicia no se dispara, MARCO se confirma a sí mismo, dos fija no chocan, la empresa edita una legal, la combinación de la empresa se ignora). Las 21 del script son detectadas.
 
-La primera corrida no terminó: el sistema la detuvo por falta de memoria del equipo, con una mutación aplicada que se restauró a mano. La suite usa como máximo unos 700 MB; la presión venía del resto del equipo. Desde entonces la JVM de pruebas tiene tope (`-Xmx768m`, pico medido 545 MB) y el script corre en tandas en primer plano, imprimiendo cada resultado al salir.
+La primera corrida no terminó: el sistema la detuvo por falta de memoria del equipo, con una mutación aplicada que se restauró a mano. La suite usa como máximo unos 700 MB; la presión venía del resto del equipo. Desde entonces la JVM de pruebas tiene tope (`-Xmx768m`, pico medido 545 MB) y las mutaciones corren en una sola JVM (`deps -M:mutaciones`, `scripts/mutaciones.clj` y `.edn`): unos 100 segundos en vez de unos 16 minutos.
+
+Correrlas en una JVM caliente destapó una carrera de tiempo en el almacén: una lectura sin fecha podía no ver lo que se acababa de escribir. Se corrigió (ver `knowledge/xtdb-bitemporalidad.md`); antes producía detecciones falsas y, en uso, una operación podía no encontrar la orden recién emitida. Es un rodeo más al almacén: el quinto, con 15 líneas.
 
 ### Hallazgos de la etapa
 

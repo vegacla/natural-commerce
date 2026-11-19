@@ -48,7 +48,7 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 
 ## Forma de trabajo
 
-- Separación por empresa (D80): solo `src/nc/almacen.clj` toca XTDB; toda función pública del almacén recibe la empresa y la valida; ningún código recibe una empresa de afuera sin pasarla por la vista de empresa (`estado.clj`). Al agregar una función pública al almacén, declararla en `test/nc/resguardos_test.clj`. `python scripts/mutaciones.py [desde hasta]` rompe cada resguardo y comprueba que alguna prueba falle; correrlo en primer plano, en tandas de 8.
+- Separación por empresa (D80): solo `src/nc/almacen.clj` toca XTDB; toda función pública del almacén recibe la empresa y la valida; ningún código recibe una empresa de afuera sin pasarla por la vista de empresa (`estado.clj`). Al agregar una función pública al almacén, declararla en `test/nc/resguardos_test.clj`. `deps -M:mutaciones` (con `JAVA_CMD`) rompe cada resguardo de `scripts/mutaciones.edn` y comprueba que alguna prueba falle, en una sola JVM (unos 100 s). Al agregar un resguardo, agregar su mutación.
 - El conocimiento que se obtiene al implementar (cómo se comporta una herramienta, una trampa, un procedimiento) se escribe en `docs/knowledge/`, un archivo por tema, y se agrega a su índice.
 - Toda decisión nueva se agrega a `docs/registro-de-decisiones.md` con el número siguiente al último.
 - Lo tributario chileno no está verificado por un experto: construirlo desde fuentes oficiales del SII y marcarlo (D42).

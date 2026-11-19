@@ -109,7 +109,9 @@
         en-60  (dias-desde-hoy 60)
         r3     (:registro (alm/publicar! *alm* e :politicas (compra-formal 3 (dias-desde-hoy -10))))
         r4     (:registro (alm/publicar! *alm* e :politicas (compra-formal 4 en-30)))
-        hoy    (dias-desde-hoy 0)
+        ;; Instant, no Date: con milisegundos, hoy podría quedar antes de la
+        ;; transacción que se acaba de escribir (knowledge/xtdb-bitemporalidad.md).
+        hoy    (java.time.Instant/now)
         version (fn [opts] (:politica/version (alm/vigente *alm* e :politicas :empresa-b/compra-formal opts)))]
     (testing "una versión cargada hoy rige recién desde su fecha (H9)"
       (is (= 3 (version {:al hoy})))
@@ -122,8 +124,8 @@
       (is (= 5 (version {:validez (dias-desde-hoy 20)})))
       (is (= 4 (version {:validez en-60}))))
     (testing "toda versión necesita número y fecha de vigencia"
-      (is (= :sin-vigencia (error-de #(alm/publicar! *alm* e :politicas (dissoc (compra-formal 6 hoy) :politica/rige-desde)))))
-      (is (= :sin-version (error-de #(alm/publicar! *alm* e :politicas (dissoc (compra-formal 6 hoy) :politica/version))))))
+      (is (= :sin-vigencia (error-de #(alm/publicar! *alm* e :politicas (dissoc (compra-formal 6 (dias-desde-hoy 0)) :politica/rige-desde)))))
+      (is (= :sin-version (error-de #(alm/publicar! *alm* e :politicas (dissoc (compra-formal 6 (dias-desde-hoy 0)) :politica/version))))))
     (is (some? r4))))
 
 (deftest saldos
