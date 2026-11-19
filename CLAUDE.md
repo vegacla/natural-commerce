@@ -38,7 +38,7 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 - El CLI de Clojure es `deps` (deps.clj, en `~/.local/bin`).
 - XTDB v2 exige JDK 21 o superior. El proyecto lo usa mediante `JAVA_CMD`, con el JDK 21 instalado aparte en `~/AppData/Local/Programs/Temurin21/jdk-21.0.13+9` (detalle en `docs/knowledge/entorno-jdk.md`).
 - SARA mínima: `.\sara.ps1` en PowerShell y abrir http://localhost:8081. Carga los datos de ejemplo en memoria; se pierden al detenerla.
-- E23 con Claude de verdad: `nc.lenguaje-claude-test` corre solo con `ANTHROPIC_API_KEY` y cuesta dinero; sin clave se omite.
+- E23 con Claude de verdad: `.\e23-claude.ps1` pide la clave y corre `nc.lenguaje-claude-test` (cinco llamadas a Claude Haiku 5.5, cuesta dinero); sin `ANTHROPIC_API_KEY` la prueba se omite.
 - Pruebas: `.\pruebas.ps1` en PowerShell, desde cualquier carpeta; fija `JAVA_CMD` solo mientras corre. En bash: `JAVA_CMD="C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe" deps -M:test`.
 
 ## Código
