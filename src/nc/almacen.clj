@@ -62,6 +62,7 @@
    :conceptos   :concepto/id
    :caminos     :camino/id
    :planes      :plan/id
+   :tablas      :tabla/id
    :decisiones  :decision/id
    :marcas      nil})
 
@@ -70,7 +71,8 @@
   {:politicas [:politica/version :politica/rige-desde]
    :conceptos [:concepto/version :concepto/rige-desde]
    :caminos   [:camino/version :camino/rige-desde]
-   :planes    [:plan/version :plan/rige-desde]})
+   :planes    [:plan/version :plan/rige-desde]
+   :tablas    [:tabla/version :tabla/rige-desde]})
 
 (defn- uuid-de [x] (UUID/nameUUIDFromBytes (.getBytes (pr-str x) "UTF-8")))
 

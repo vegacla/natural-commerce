@@ -80,6 +80,7 @@
    :max         {:min 2 :max 2}
    :min         {:min 2 :max 2}
    :tabla       {:min 2}
+   :saldo       {:min 2 :max 3}
    :rol         {:min 1 :max 1}})
 
 (def operaciones
@@ -181,6 +182,11 @@
       :max   (let [[expr col] args] (extremo pos? expr (ev col) ctx))
       :min   (let [[expr col] args] (extremo neg? expr (ev col) ctx))
       :tabla ((:tabla ctx) (first args) (mapv ev (rest args)))
+      ;; [:saldo concepto clave] es el valor del saldo, {} si no existe;
+      ;; [:saldo concepto clave campo], uno de sus datos, 0 si no existe.
+      :saldo (let [[c clave campo] args
+                   valor (or ((:saldo ctx) c (ev clave)) {})]
+               (if campo (get valor campo 0) valor))
       :rol   ((:rol ctx) (first args)))))
 
 (defn- aplicar [[k & args :as expr] ctx]

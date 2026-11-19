@@ -58,6 +58,20 @@
           (remove #(contains? pendientes (id %)))
           (alm/buscar almacen empresa tabla filtro consulta))))
 
+(defn- saldo
+  "El valor de un saldo, con lo que la operación en curso ya movió."
+  [{:keys [almacen empresa consulta]} pendientes concepto clave]
+  (:saldo/valor (or (get pendientes [concepto clave])
+                    (alm/leer almacen empresa :saldos [concepto clave] consulta))))
+
+(defn- de-tabla
+  "Un valor de una tabla de la empresa (lista de precios, tasas) en la versión que
+  rige en el instante de la vista. Anota la versión usada (D48, H9)."
+  [{:keys [almacen empresa consulta]} traza id claves]
+  (when-let [t (alm/leer almacen empresa :tablas id consulta)]
+    (swap! traza assoc-in [:reglas id] (:tabla/version t))
+    (some #(when (= claves (:clave %)) (:valor %)) (:tabla/filas t))))
+
 (defn- con-rol [{:keys [almacen empresa consulta]} rol]
   (->> (alm/buscar almacen empresa :entidades {:entidad/tipo :persona} consulta)
        (filter #(contains? (set (:persona/roles %)) rol))
@@ -73,6 +87,8 @@
     :hechos      #(buscar-con estado (:hechos pendientes) :hechos "hecho" %)
     :compromisos #(buscar-con estado (:compromisos pendientes) :compromisos "compromiso" %)
     :concepto    #(get-in estado [:catalogo :conceptos %])
+    :saldo       #(saldo estado (:saldos pendientes) %1 %2)
+    :tabla       #(de-tabla estado traza %1 %2)
     :rol         #(con-rol estado %)
     :traza       traza}))
 
@@ -123,6 +139,20 @@
               (throw (ex-info (str "Opción de vigencia no implementada: " aplica-con)
                               {:nc/error :opcion-no-implementada :politica id}))))
           (filter #(aplica-a? % op) (vigentes estado)))))
+
+(defn de-evento
+  "Las políticas vigentes que aplican a un evento, como [:registra tipo-de-hecho]."
+  [estado evento]
+  (filter #(= evento (:politica/aplica-a %)) (vigentes estado)))
+
+(def combinacion-por-defecto
+  "Cómo se combinan varias políticas de una forma (notación 6.3, P9). La empresa
+  puede cambiarlo en su configuración (`:combinacion`)."
+  {:sugiere :la-mas-especifica
+   :exime   :todas})
+
+(defn combinacion [estado forma]
+  (get (merge combinacion-por-defecto (get-in estado [:catalogo :combinacion])) forma))
 
 (defn reglas-de-inicio
   "Versiones vigentes de las políticas que se aplican con la del inicio del caso.

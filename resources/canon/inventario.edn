@@ -1,0 +1,51 @@
+;; Canon de la capacidad Inventario (prototipo ampliado, D81).
+;;
+;; Etapa 8: reservar stock (un compromiso interno sobre un recurso, T2) y la
+;; disponibilidad como cálculo, no como saldo guardado (visión 6.5).
+
+{:tipos-hecho
+ [{:tipo-hecho/id      :inventario/reserva
+   :tipo-hecho/datos   [:map
+                        [:entrega [:ref :ventas/entrega-pendiente]]
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :conceptos
+ [;; Existencia de la bodega, menos lo reservado, más lo que viene en camino.
+  {:concepto/id      :inventario/disponible
+   :concepto/version 1
+   :concepto/tipo    :cantidad
+   :concepto/params  {:producto :ref :bodega :ref}
+   :concepto/forma   [:+ [:- [:saldo :inventario/existencia {:producto producto :bodega bodega} :cantidad]
+                             [:suma [:si [:y [:= [:-> cada :compromiso/objeto :producto] producto]
+                                             [:= [:-> cada :compromiso/objeto :bodega] bodega]]
+                                         [:-> cada :compromiso/saldo :cantidad]
+                                         0]
+                                    [:compromisos {:tipo :inventario/reservado :estado :activo}]]]
+                         [:suma [:si [:= [:-> cada :compromiso/objeto :producto] producto]
+                                     [:-> cada :compromiso/saldo :cantidad]
+                                     0]
+                                [:compromisos {:tipo :compras/recepcion-pendiente :estado :activo}]]]}]
+
+ :contratos
+ [{:op/id        :inventario/reservar
+   :op/capacidad :inventario
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:entrega [:ref :ventas/entrega-pendiente]]
+                  [:producto [:ref :producto]]
+                  [:bodega [:ref :bodega]]
+                  [:cantidad :cantidad]]
+   :op/salidas   {:reserva reserva/id}
+   :op/efectos
+   [[:registra-hecho :inventario/reserva entrada :como reservada]
+    [:abre-compromiso {:tipo     :inventario/reservado
+                       :deudor   empresa
+                       :acreedor empresa
+                       :origen   reservada/id
+                       :objeto   {:producto entrada/producto
+                                  :bodega   entrada/bodega
+                                  :cantidad entrada/cantidad}}
+     :como reserva]]}]}

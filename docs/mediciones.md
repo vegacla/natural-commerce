@@ -354,3 +354,52 @@ Ninguno nuevo. La decisión se escribe en la misma transacción que los cambios 
 ### Pendiente
 
 - Extender E10 y E11 con pedido, reserva y despacho (etapas 8 y 9).
+
+## Etapa 8: las formas que faltaban (2026-11-18)
+
+Escenarios E12, E19 y E21. Fija, sugiere, limita e inicia, y conflictos entre políticas.
+
+### Líneas del núcleo
+
+| Archivo | Qué cambió | Líneas |
+|---|---|---|
+| `src/nc/resolvedor.clj` | Fija y sugiere antes de revisar las entradas; limita con tolerancia; combinación de exime configurable (D86) | +98 |
+| `src/nc/politicas.clj` | Conflictos al publicar y publicación de legales (D88) | 63 |
+| `src/nc/ejecutor.clj` | Inicia: MARCO plantea el objetivo tras escribir un hecho (D87) | +34 |
+| `src/nc/estado.clj` | Saldos y tablas en el contexto; políticas por evento; combinación por defecto | +25 |
+| `src/nc/expresion.clj`, `validar.clj`, `esquema.clj`, `catalogo.clj`, `almacen.clj` | `[:saldo ...]`; tablas versionadas; entradas de "inicia" (D85) | +10 |
+| **Total del núcleo de MARCO** | | **2.165** (antes 1.935) |
+
+SARA: +4 líneas (llenar el campo con el valor que fija o sugiere una política).
+
+Pruebas: 1.689 líneas; 5 pruebas nuevas. Las 60 pruebas, con 507 comprobaciones, pasan, y los invariantes de la bitácora se cumplen en todas las empresas.
+
+### Líneas por operación
+
+Dos operaciones nuevas, sin código propio: registrar pedido (23 líneas de contrato) y reservar (17), más dos conceptos (cupo disponible y disponibilidad) y dos tipos de hecho. El núcleo creció por las cuatro formas y los conflictos, que sirven a cualquier operación.
+
+### Rodeos al almacén
+
+Ninguno. Las tablas son otra tabla versionada, como las políticas.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente, detectadas por las pruebas: un `declare` faltante, el `:con` de un conflicto que nombraba a la política nueva en vez de la vigente, y SARA, que no mostraba el valor sugerido. En las pruebas, políticas sin citar (ver `knowledge/nucleo.md`).
+
+### Mutaciones
+
+`scripts/mutaciones.py` suma ocho mutaciones (sugiere no llena, fija acepta otro valor, limita no prohíbe, inicia no se dispara, MARCO se confirma a sí mismo, dos fija no chocan, la empresa edita una legal, la combinación de la empresa se ignora). **La corrida no terminó**: el sistema la detuvo por falta de memoria. Una mutación quedó aplicada y se restauró a mano; las pruebas pasan sobre el código restaurado. Queda pendiente correr las 21.
+
+### Hallazgos de la etapa
+
+- **El lenguaje no podía leer un saldo.** La disponibilidad (existencia − reservas + por recibir) no se podía escribir como concepto. Se agregó `[:saldo ...]` (D85). Es el primer cambio al lenguaje de expresiones desde la etapa 1.
+- **Reservar no puede ser un efecto del pedido.** Si lo fuera, una empresa sin inventario no podría vender. Como operación aparte, el plan decide si existe (D88, visión 6.5). Las operaciones nuevas del prototipo ampliado pasan de 15 a 16.
+- **MARCO no se confirma a sí mismo.** Sin una "exime", lo que inicia queda por confirmar, aunque nada más falte. Hubo que probarlo aparte: la mutación que lo rompe no la detectaba ningún escenario de la propuesta.
+- **El valor fijado prohíbe, no reemplaza.** Si quien opera da otro valor, se rechaza con la razón; reemplazarlo en silencio habría ocultado el choque.
+- **Sin probar:** exigir una aprobación al exceder la tolerancia de un límite (el pedido no tiene un caso previo donde registrarla) y `:despues` en "inicia" (etapa 9).
+
+### Pendiente
+
+- Correr las 21 mutaciones.
+- "Inicia" con `:despues` (etapa 9).

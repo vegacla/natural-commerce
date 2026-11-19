@@ -152,7 +152,9 @@
   (let [contrato (get-in estado [:catalogo :contratos op])
         res      (r/resolver estado actor op entradas)
         por-id   (into {} (map (juxt :id identity)) (filter de-entrada? (:requisitos res)))
-        entrega  (into {} (keep #(when-let [k (:entrega %)] [k %])) (:requisitos res))]
+        entrega  (into {} (keep #(when-let [k (:entrega %)] [k %])) (:requisitos res))
+        ;; Lo que fija o sugiere una política llena el campo vacío (P4).
+        dados    (into {} (map (juxt :campo identity)) (:valores res))]
     {:operacion    op
      :titulo       (titulo op)
      :tipo         (:op/tipo contrato)
@@ -161,14 +163,17 @@
      :campos       (vec (for [[k {:keys [tipo opcional]}] (esq/campos-ordenados (:op/entradas contrato))
                               :let [id  (keyword "entrada" (name k))
                                     req (por-id id)
-                                    exigida (entrega id)]]
+                                    exigida (entrega id)
+                                    dado    (dados id)
+                                    valor   (get entradas k (:valor dado))]]
                           {:nombre      k
                            :etiqueta    (titulo k)
                            :tipo        (val/tipo-normal tipo)
                            :forma       tipo
                            :obligatorio (or (not opcional) (some? exigida))
-                           :valor       (get entradas k)
-                           :texto       (escribir tipo (get entradas k))
+                           :valor       valor
+                           :texto       (escribir tipo valor)
+                           :dado-por    (when dado (select-keys dado [:forma :politica]))
                            :opciones    (opciones estado tipo)
                            :problema    (:problema req)
                            :falta       (= :pendiente (:estado req))

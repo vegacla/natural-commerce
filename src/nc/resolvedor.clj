@@ -4,9 +4,12 @@
   puede hacerlo (notación 7.3).
 
   El contrato decide si las entradas son válidas (P5, D65); las políticas, qué
-  más hace falta. Formas que se evalúan en esta etapa: exige, prohíbe, permite
-  y exime. Sugiere, fija, limita e inicia se agregan con los escenarios que las
-  usan.
+  más hace falta. Fija y sugiere dan valor a entradas antes de revisarlas:
+  sugiere llena una que falta; fija la llena y rechaza un valor distinto (P4,
+  H6). Limita compara un valor con un máximo, con tolerancia (D34). Exige,
+  prohíbe y permite dicen qué falta y quién puede; exime levanta la
+  confirmación. Inicia no se evalúa aquí: la dispara el ejecutor al registrar
+  un hecho (H7).
 
   Una operación fuera del plan de la empresa está prohibida, y también lo está
   un requisito que solo se cumple con una operación fuera del plan: nada queda
@@ -16,7 +19,8 @@
             [malli.error :as me]
             [nc.esquema :as esq]
             [nc.estado :as est]
-            [nc.expresion :as e]))
+            [nc.expresion :as e]
+            [nc.valor :as v]))
 
 (defn- dato [sym] (keyword (namespace sym) (name sym)))
 
@@ -136,27 +140,122 @@
                                    (quien-puede estado ctx via)))
            (when-let [k (entrega estado contrato via)] {:entrega k}))))
 
+(declare requisito-limite)
+
 (defn- requisitos-de-politica [estado ctx contrato p]
   (let [r (aplica ctx p)]
     (cond
-      (not (#{:exige :prohibe :permite} (:politica/forma p))) []
+      (not (#{:exige :prohibe :permite :limita} (:politica/forma p))) []
       (contains? r :falta) [{:id (:politica/id p) :estado :indeterminado :pide [(dato (:falta r))]}]
       (not (:valor r))     []
       :else
       (case (:politica/forma p)
         :prohibe [{:id (:politica/id p) :estado :prohibido :razon (get-in p [:politica/cuerpo :razon])}]
         :exige   (mapv #(requisito-exigido estado ctx contrato p %) (:politica/cuerpo p))
+        :limita  [(requisito-limite ctx p)]
         :permite []))))
 
 (defn- eximida?
-  "La confirmación se levanta si alguna \"exime\" aplica y todas las que aplican
-  se cumplen (D53, P9)."
-  [ctx ps]
-  (let [eximen (filter #(aplica? ctx %) (de-forma :exime ps))]
+  "La confirmación se levanta si alguna \"exime\" aplica y se cumplen todas las
+  que aplican, o una sola si así lo configura la empresa (D53, P9)."
+  [estado ctx ps]
+  (let [eximen (filter #(aplica? ctx %) (de-forma :exime ps))
+        cumple (fn [p] (let [hasta (get-in p [:politica/cuerpo :hasta])]
+                         (or (nil? hasta) (true? (:valor (e/evaluar-seguro hasta ctx))))))]
     (and (seq eximen)
-         (every? (fn [p] (let [hasta (get-in p [:politica/cuerpo :hasta])]
-                           (or (nil? hasta) (true? (:valor (e/evaluar-seguro hasta ctx))))))
-                 eximen))))
+         (if (= :basta-una (est/combinacion estado :exime))
+           (boolean (some cumple eximen))
+           (every? cumple eximen)))))
+
+;; --- Fija y sugiere: valores de entradas (P4, H6) -----------------------------------
+
+(defn- campo-de [p] (keyword (name (get-in p [:politica/cuerpo :campo]))))
+
+(defn- valor-seguro
+  "El valor de una expresión, o nil si falta un dato o no se puede calcular con
+  entradas todavía sin revisar."
+  [expr ctx]
+  (try (:valor (e/evaluar-seguro expr ctx))
+       (catch clojure.lang.ExceptionInfo _ nil)))
+
+(defn- prioridad [p] (or (:politica/prioridad p) 0))
+
+(defn- ganadora-fija
+  "Entre varias \"fija\" del mismo campo: la legal, o la de mayor prioridad (D35).
+  Si empatan, es conflicto: nil y las empatadas."
+  [ps]
+  (let [legales (filter #(= :legal (:politica/origen %)) ps)
+        grupo   (if (seq legales) legales ps)
+        maxima  (apply max (map prioridad grupo))
+        tope    (filter #(= maxima (prioridad %)) grupo)]
+    (if (next tope) [nil tope] [(first tope) nil])))
+
+(defn- ganadora-sugiere
+  "Entre varias \"sugiere\" del mismo campo, la que dice la combinación de la
+  empresa: por defecto, la más específica, la que tiene condición (P9)."
+  [estado ps]
+  (let [ordenadas (sort-by (juxt #(if (contains? % :politica/cuando) 0 1) (comp - prioridad)) ps)]
+    (case (est/combinacion estado :sugiere)
+      :la-de-mayor-prioridad (first (sort-by (comp - prioridad) ps))
+      (first ordenadas))))
+
+(defn- valores
+  "Las entradas con los valores que fijan y sugieren las políticas, y lo que eso
+  deja dicho: los valores usados y los rechazos por un valor distinto del fijado."
+  [estado ctx ps entradas]
+  (let [aplican (fn [forma] (group-by campo-de (filter #(aplica? ctx %) (de-forma forma ps))))
+        fijas   (aplican :fija)
+        sugeridas (aplican :sugiere)
+        r0      {:entradas entradas :valores [] :requisitos []}
+        r1      (reduce (fn [r [k grupo]]
+                          (let [[p empate] (ganadora-fija grupo)
+                                x (when p (valor-seguro (get-in p [:politica/cuerpo :valor]) ctx))
+                                dado (get entradas k)]
+                            (cond
+                              empate
+                              (update r :requisitos conj
+                                      {:id (entrada k) :estado :prohibido :conflicto (mapv :politica/id empate)
+                                       :razon (str "Varias políticas fijan " (name k) " con la misma prioridad")})
+                              (nil? x) r
+                              (and (some? dado) (not (v/igual? dado x)))
+                              (update r :requisitos conj
+                                      {:id (entrada k) :estado :prohibido :politica (:politica/id p) :valor x
+                                       :razon (str (:politica/id p) " fija " (name k) " en " (pr-str x))})
+                              :else
+                              (-> r (assoc-in [:entradas k] x)
+                                  (update :valores conj {:campo (entrada k) :forma :fija :politica (:politica/id p) :valor x})))))
+                        r0 fijas)]
+    (reduce (fn [r [k grupo]]
+              (let [p (ganadora-sugiere estado grupo)
+                    x (valor-seguro (get-in p [:politica/cuerpo :valor]) ctx)]
+                (if (or (nil? x) (some? (get-in r [:entradas k])) (contains? fijas k))
+                  r
+                  (-> r (assoc-in [:entradas k] x)
+                      (update :valores conj {:campo (entrada k) :forma :sugiere :politica (:politica/id p) :valor x})))))
+            r1 sugeridas)))
+
+;; --- Limita (D34) -----------------------------------------------------------------
+
+(defn- requisito-limite
+  "Un \"limita\": el valor no supera el máximo, o lo supera dentro de la
+  tolerancia. Más allá, lo que diga `:al-exceder-tolerancia` (por defecto, se
+  prohíbe). Si varias aplican, rige la más restrictiva: cada una se evalúa."
+  [ctx p]
+  (let [{:keys [valor maximo tolerancia]} (:politica/cuerpo p)
+        x   (e/evaluar-seguro valor ctx)
+        m   (e/evaluar-seguro maximo ctx)
+        tol (when tolerancia (e/evaluar-seguro tolerancia ctx))
+        id  (:politica/id p)]
+    (if-let [falta (some :falta [x m tol])]
+      {:id id :estado :indeterminado :pide [(dato falta)]}
+      (let [x (:valor x) m (:valor m)
+            tope (if tol (v/sumar m (v/multiplicar m (:valor tol))) m)
+            base {:id id :politica id :valor x :maximo m}]
+        (cond
+          (not (pos? (v/comparar x m)))    (assoc base :estado :satisfecho)
+          (not (pos? (v/comparar x tope))) (assoc base :estado :satisfecho :tolerado true :tope tope)
+          :else (assoc base :estado :prohibido
+                       :razon (str "Supera el límite de " id ": " (pr-str x) " sobre " (pr-str (if tol tope m)))))))))
 
 ;; --- Respuesta -------------------------------------------------------------------
 
@@ -173,6 +272,15 @@
   [estado actor op entradas]
   (let [contrato (or (get-in estado [:catalogo :contratos op])
                      (e/error! :operacion-desconocida (str "No existe la operación " op) {:op op}))
+        ;; Fija y sugiere ven las entradas como llegaron, antes de revisarlas.
+        caso0    (est/caso-de estado contrato entradas)
+        traza0   (atom {})
+        ctx0     (est/contexto estado (cond-> {'entrada entradas 'actor actor 'empresa (:empresa estado)
+                                               'ahora (est/ahora estado)}
+                                        caso0 (assoc 'caso caso0))
+                               {} traza0)
+        {entradas :entradas :keys [valores] fijadas :requisitos}
+        (valores estado ctx0 (est/politicas estado op caso0) entradas)
         {:keys [validas requisitos opcionales]} (revisar-entradas estado contrato entradas)
         caso     (est/caso-de estado contrato validas)
         refs     (cond-> {'entrada validas 'actor actor 'empresa (:empresa estado) 'ahora (est/ahora estado)}
@@ -182,12 +290,16 @@
         exigidos (mapcat #(requisitos-de-politica estado ctx contrato %) ps)
         {:keys [quien puede]} (permiso ctx ps)
         en-plan? (est/habilitada? estado op)
-        reglas   (into {} (map (juxt :politica/id :politica/version)) ps)
+        ;; Las versiones de las políticas y de las tablas con que se dio valor a
+        ;; las entradas (D48).
+        reglas   (merge (into {} (map (juxt :politica/id :politica/version)) ps)
+                        (:reglas @traza0))
         entregan (set (keep :entrega exigidos))
         todos    (vec (concat (when-not en-plan?
                                 [{:id :plan :estado :prohibido
                                   :razon (str "La capacidad " (:op/capacidad contrato) " no está en el plan contratado")}])
                               requisitos
+                              fijadas
                               exigidos
                               (when-not puede
                                 [{:id :permiso :estado :prohibido :quien quien
@@ -203,7 +315,8 @@
      {:objetivo     {:operacion op :entradas entradas}
       :estado       (estado-general todos)
       :requisitos   todos
-      :confirmacion (if (eximida? ctx ps) :eximida :requerida)
+      :valores      valores
+      :confirmacion (if (eximida? estado ctx ps) :eximida :requerida)
       :caso         (:compromiso/id caso)
       :reglas       reglas}}))
 

@@ -119,6 +119,7 @@
       (:suma :max :min) (let [[x col] args] (tipo-de-cada x col ent))
       :->        (tipo-navegacion args ent expr)
       :tabla     (do (run! #(tipo-de % ent) (rest args)) :cualquiera)
+      :saldo     (do (tipo-de (second args) ent) :cualquiera)
       :rol       :coleccion
       :monto     :monto
       :cantidad  :cantidad

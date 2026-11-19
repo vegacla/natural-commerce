@@ -138,7 +138,8 @@
    :sugiere campo-y-valor
    :fija    campo-y-valor
    :exime   [:map {:closed true} [:hasta {:optional true} :any]]
-   :inicia  [:map {:closed true} [:objetivo :qualified-keyword] [:despues {:optional true} :any]]
+   :inicia  [:map {:closed true} [:objetivo :qualified-keyword] [:despues {:optional true} :any]
+             [:entradas {:optional true} [:map-of :keyword :any]]]
    :permite [:map {:closed true} [:quien :any] [:ambito {:optional true} :any]]})
 
 (def ^:private Camino
@@ -266,7 +267,8 @@
     :limita  (for [k [:valor :maximo :tolerancia] :when (contains? cuerpo k)] [(k cuerpo) nil nil])
     (:sugiere :fija) [[(:valor cuerpo) nil nil]]
     :exime   (when (contains? cuerpo :hasta) [[(:hasta cuerpo) :booleano nil]])
-    :inicia  (when (contains? cuerpo :despues) [[(:despues cuerpo) :duracion nil]])
+    :inicia  (concat (when (contains? cuerpo :despues) [[(:despues cuerpo) :duracion nil]])
+                     (for [x (vals (:entradas cuerpo))] [x nil {'hecho :cualquiera}]))
     :permite (cond-> [[(:quien cuerpo) nil nil]]
                (contains? cuerpo :ambito) (conj [(:ambito cuerpo) :booleano nil]))))
 

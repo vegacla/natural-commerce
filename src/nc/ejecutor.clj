@@ -34,7 +34,8 @@
 (defn- pendientes [app]
   {:hechos      (into {} (map (juxt :hecho/id identity)) (:hechos app))
    :compromisos (:compromisos app)
-   :entidades   (:entidades app)})
+   :entidades   (:entidades app)
+   :saldos      (:saldos app)})
 
 (defn- contexto [app]
   (est/contexto (:estado app) (:refs app) (pendientes app) (:traza app)))
@@ -294,6 +295,43 @@
     (alm/escribir! (:almacen estado) (:empresa estado) {:decision d})
     (:decision/id d)))
 
+;; --- Inicia (H7, D51) -------------------------------------------------------------
+
+(declare ejecutar!)
+
+(def actor-marco
+  "La identidad con que MARCO actúa por iniciativa propia (P8)."
+  :marco)
+
+(def ^:private profundidad-maxima
+  "Un objetivo iniciado puede iniciar otros; la cadena se corta aquí."
+  3)
+
+(defn- iniciar!
+  "Las políticas \"inicia\" que se disparan con los hechos escritos: MARCO
+  plantea su objetivo con su propia identidad y lo ejecuta si puede, sin
+  confirmación solo si una política lo exime; si no, queda propuesto, con lo que
+  falta (D51). Una con `:despues` espera al tiempo (etapa 9) y no se dispara aquí."
+  [estado hechos {:keys [profundidad] :or {profundidad 0}}]
+  (when (< profundidad profundidad-maxima)
+    (vec (for [h hechos
+               p (est/de-evento estado [:registra (:hecho/tipo h)])
+               :let [{:keys [objetivo entradas despues]} (:politica/cuerpo p)
+                     ctx (est/contexto estado {'hecho h 'actor actor-marco 'empresa (:empresa estado)
+                                               'ahora (est/ahora estado)})]
+               :when (and (nil? despues)
+                          (or (not (contains? p :politica/cuando))
+                              (true? (:valor (e/evaluar-seguro (:politica/cuando p) ctx)))))
+               :let [ents (e/evaluar (or entradas {}) ctx)
+                     res  (ejecutar! estado actor-marco objetivo ents
+                                     {:origen :marco :profundidad (inc profundidad)})]]
+           {:politica  (:politica/id p)
+            :objetivo  objetivo
+            :entradas  ents
+            :estado    (:estado res)
+            :decision  (:decision res)
+            :requisitos (vec (remove #(#{:satisfecho :opcional} (:estado %)) (:requisitos res)))}))))
+
 ;; --- Ejecución ---------------------------------------------------------------------
 
 (defn- resultado-de
@@ -325,14 +363,16 @@
        :aplicar      (let [d (decision plan :ejecutado opts)]
                        (try
                          (let [{:keys [registro]} (alm/escribir! (:almacen estado) (:empresa estado)
-                                                                 (assoc cambios :decision d) {:marca marca})]
-                           {:estado   :ejecutado
-                            :salidas  (salidas estado contrato (:refs app))
-                            :caso     (get-in app [:caso :compromiso/id])
-                            :hechos   (mapv :hecho/id (:hechos cambios))
-                            :reglas   (merge reglas (:reglas @(:traza app)))
-                            :registro registro
-                            :decision (:decision/id d)})
+                                                                 (assoc cambios :decision d) {:marca marca})
+                               iniciadas (iniciar! estado (:hechos cambios) opts)]
+                           (cond-> {:estado   :ejecutado
+                                    :salidas  (salidas estado contrato (:refs app))
+                                    :caso     (get-in app [:caso :compromiso/id])
+                                    :hechos   (mapv :hecho/id (:hechos cambios))
+                                    :reglas   (merge reglas (:reglas @(:traza app)))
+                                    :registro registro
+                                    :decision (:decision/id d)}
+                             (seq iniciadas) (assoc :iniciadas iniciadas)))
                          (catch clojure.lang.ExceptionInfo ex
                            (when (= :conflicto (:nc/error (ex-data ex)))
                              (anotar! estado plan :conflicto opts))

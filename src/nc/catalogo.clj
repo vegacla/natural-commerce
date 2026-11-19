@@ -40,13 +40,13 @@
 
 (def canon
   "Los recursos del canon de la plataforma, en el orden en que se unen."
-  ["canon/compras.edn" "canon/ventas.edn"])
+  ["canon/compras.edn" "canon/ventas.edn" "canon/inventario.edn"])
 
 (defn armar
   "Une varias partes en un catálogo. Los campos de entidad incluyen los que cada
   empresa agrega como extensión (D3)."
   [& partes]
-  (let [{:keys [entidades tipos-hecho conceptos contratos politicas caminos extensiones]}
+  (let [{:keys [entidades tipos-hecho conceptos contratos politicas caminos extensiones combinacion]}
         (apply merge-with into (map #(update-vals % vec) partes))
         ext (extensiones-por-tipo extensiones)]
     {:entidades   (por :entidad/tipo entidades)
@@ -56,6 +56,7 @@
      :contratos   (por :op/id (map #(con-campos-propios ext %) contratos))
      :tipos-compromiso (tipos-de-compromiso contratos)
      :politicas   (vec politicas)
+     :combinacion (into {} combinacion)
      :caminos     (vec caminos)
      :campos      (into (apply merge {} (map :entidad/campos entidades))
                         (map :extension/campo extensiones))}))

@@ -8,7 +8,7 @@ Requiere `deps` en el PATH. Ajustar JAVA_CMD si el JDK 21 está en otra ruta.
 """
 import subprocess, re, shutil, os
 ALM='src/nc/almacen.clj'; WEB='src/nc/sara/web.clj'; SARA='src/nc/sara.clj'
-EJE='src/nc/ejecutor.clj'; RES='src/nc/resolvedor.clj'
+EJE='src/nc/ejecutor.clj'; RES='src/nc/resolvedor.clj'; POL='src/nc/politicas.clj'
 env=dict(os.environ, JAVA_CMD=os.environ.get("JAVA_CMD") or "C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe")
 def run():
     r=subprocess.run("deps -M:test",shell=True,capture_output=True,text=True,env=env,encoding='utf-8',errors='replace')
@@ -32,6 +32,15 @@ muts=[
  # D83 y M1: plan y entidades
  ("una operación fuera del plan se ejecuta",RES,"(vec (concat (when-not en-plan?","(vec (concat (when false"),
  ("una entidad desactivada se puede usar",RES,"(false? (:entidad/activa (est/leer estado valor)))","false"),
+ # Etapa 8: formas fija, sugiere, limita, inicia y conflictos
+ ("sugiere no llena la entrada",RES,"(if (or (nil? x) (some? (get-in r [:entradas k])) (contains? fijas k))","(if true"),
+ ("fija acepta otro valor",RES,"(and (some? dado) (not (v/igual? dado x)))","false"),
+ ("limita no prohíbe",RES,":else (assoc base :estado :prohibido",":else (assoc base :estado :satisfecho"),
+ ("inicia no se dispara",EJE,"p (est/de-evento estado [:registra (:hecho/tipo h)])","p []"),
+ ("MARCO se confirma a sí mismo",EJE,"{:origen :marco :profundidad (inc profundidad)}","{:origen :marco :confirmado true :profundidad (inc profundidad)}"),
+ ("dos fija no chocan",POL,"c [(fija-contra-fija p q) (exige-contra-prohibe estado p q)]","c [(exige-contra-prohibe estado p q)]"),
+ ("la empresa edita una legal",POL,"(and (= :empresa autor) (or (legal? p) (legal? anterior)))","false"),
+ ("la combinación de la empresa se ignora",RES,"(if (= :basta-una (est/combinacion estado :exime))","(if false"),
 ]
 res=[]
 for nombre,f,a,b in muts:

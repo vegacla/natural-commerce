@@ -6,7 +6,7 @@ Idioma del proyecto: español (documentos, nombres de dominio, conversación).
 
 ## Estado
 
-El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Prototipo ampliado aprobado (D81, `docs/prototipo-ampliado.md`): etapas 7 a 13, E10 a E27; etapa 7 hecha (bitácora, plan y maestros). Revisión de madurez operativa de XTDB hecha (`docs/revision-xtdb.md`): se sigue con Clojure y XTDB, con tres condiciones antes de datos de clientes (D79; la cuarta se descartó, D80).
+El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Prototipo ampliado aprobado (D81, `docs/prototipo-ampliado.md`): etapas 7 a 13, E10 a E27; etapas 7 y 8 hechas (bitácora, plan, maestros y las ocho formas de política). Revisión de madurez operativa de XTDB hecha (`docs/revision-xtdb.md`): se sigue con Clojure y XTDB, con tres condiciones antes de datos de clientes (D79; la cuarta se descartó, D80).
 
 ## Documentos (leer en este orden)
 
@@ -42,8 +42,8 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 
 ## Código
 
-- `src/nc/valor.clj` — valores con unidad. `src/nc/expresion.clj` — evaluador. `src/nc/validar.clj` — validación al escribir. `src/nc/esquema.clj` — esquemas de contrato, política, concepto, tipo de hecho y camino. `src/nc/catalogo.clj` — carga y valida el catálogo. `src/nc/almacen.clj` — hechos, compromisos, saldos y configuración versionada sobre XTDB. `src/nc/estado.clj` — vista de una empresa para MARCO: lecturas, caso y políticas vigentes. `src/nc/resolvedor.clj` — requisitos de un objetivo. `src/nc/ejecutor.clj` — ejecutor general de contratos. `src/nc/planificador.clj` — planes, caminos y borradores. `src/nc/plan.clj` — plan contratado (D83). `src/nc/bitacora.clj` — bitácora de MARCO y verificación de invariantes (D82). `src/nc/sara.clj` — SARA mínima: interfaz como datos. `src/nc/sara/web.clj` — cliente web de SARA. `src/nc/ejemplo.clj` — carga los datos de ejemplo.
-- `resources/canon/` — canon de la plataforma (`compras.edn`, `ventas.edn`; `nc.catalogo/canon` los lista). `resources/empresas/` — configuración de cada empresa. `resources/ejemplos/` — datos de ejemplo para explorar.
+- `src/nc/valor.clj` — valores con unidad. `src/nc/expresion.clj` — evaluador. `src/nc/validar.clj` — validación al escribir. `src/nc/esquema.clj` — esquemas de contrato, política, concepto, tipo de hecho y camino. `src/nc/catalogo.clj` — carga y valida el catálogo. `src/nc/almacen.clj` — hechos, compromisos, saldos y configuración versionada sobre XTDB. `src/nc/estado.clj` — vista de una empresa para MARCO: lecturas, caso y políticas vigentes. `src/nc/resolvedor.clj` — requisitos de un objetivo. `src/nc/ejecutor.clj` — ejecutor general de contratos. `src/nc/planificador.clj` — planes, caminos y borradores. `src/nc/plan.clj` — plan contratado (D83). `src/nc/bitacora.clj` — bitácora de MARCO y verificación de invariantes (D82). `src/nc/politicas.clj` — publicar políticas con detección de conflictos (D88). `src/nc/sara.clj` — SARA mínima: interfaz como datos. `src/nc/sara/web.clj` — cliente web de SARA. `src/nc/ejemplo.clj` — carga los datos de ejemplo.
+- `resources/canon/` — canon de la plataforma (`compras.edn`, `ventas.edn`, `inventario.edn`; `nc.catalogo/canon` los lista). `resources/empresas/` — configuración de cada empresa. `resources/ejemplos/` — datos de ejemplo para explorar.
 - `docs/mediciones.md` — lo que pide medir la sección 7 del prototipo, por etapa.
 
 ## Forma de trabajo
