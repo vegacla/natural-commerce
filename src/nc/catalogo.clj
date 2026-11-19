@@ -40,7 +40,7 @@
 
 (def canon
   "Los recursos del canon de la plataforma, en el orden en que se unen."
-  ["canon/compras.edn" "canon/ventas.edn" "canon/inventario.edn"])
+  ["canon/compras.edn" "canon/ventas.edn" "canon/inventario.edn" "canon/finanzas.edn"])
 
 (defn armar
   "Une varias partes en un catálogo. Los campos de entidad incluyen los que cada

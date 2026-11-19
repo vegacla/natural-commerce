@@ -406,3 +406,53 @@ Correrlas en una JVM caliente destapó una carrera de tiempo en el almacén: una
 ### Pendiente
 
 - "Inicia" con `:despues` (etapa 9).
+
+## Etapa 9: verbos y tiempo (2026-11-19)
+
+Escenarios E13, E15, E16, E17 y E18. Revertir, transferir y reducir varios; calendario; MARCO por iniciativa propia; período contable; costo de salida.
+
+### Líneas del núcleo
+
+| Archivo | Qué cambió | Líneas |
+|---|---|---|
+| `src/nc/ejecutor.clj` | Revertir, transferir, reducir varios; compromiso con calendario; `plantear!` para eventos (D89, D90) | +57 |
+| `src/nc/tiempo.clj` | El tiempo como actor: eventos que vencen, una sola vez (D91) | 57 |
+| `src/nc/calculos.clj` | Cálculos algorítmicos: costo promedio, último costo, período contable (D38, D92) | 39 |
+| `src/nc/estado.clj` | Vigencia `:cierre-del-periodo` (D92) | +15 |
+| `src/nc/almacen.clj`, `valor.clj` | Saldo por `_id`; redondear a `long` | 0 (cambios en el lugar) |
+| **Total del núcleo de MARCO** | | **2.348** (antes 2.180) |
+
+SARA: sin cambios.
+
+Pruebas: 1.934 líneas; 7 pruebas nuevas. Las 67 pruebas, con 590 comprobaciones, pasan.
+
+### Líneas por operación
+
+Once operaciones nuevas, sin código propio: despachar, emitir factura, registrar cobro, venta de mesón, nota de crédito, ceder factura, registrar arriendo, registrar anexo, devengar cuota, cerrar período y extinguir oferta vencida. Suman 116 líneas en `finanzas.edn` (con tipos y conceptos), unas 130 en `ventas.edn` y 11 en `compras.edn`. La factura es mínima: lo tributario llegará en la etapa 10 como política legal, sin cambiar su contrato.
+
+### Rodeos al almacén
+
+6. **Filtrar por igualdad de mapa** deja de funcionar cuando la columna guarda mapas de formas distintas. Los saldos se buscan por su `_id` (ver `knowledge/xtdb-trampas.md`). 3 líneas.
+7. **`BigInteger`** no se guarda. 1 línea en `nc.valor`.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente, detectadas por las pruebas y el validador: los dos rodeos, dos expresiones que el validador rechazó (`[:- 0 x]`, un parámetro de concepto que faltaba) y dos errores en las pruebas (fechas creadas en momentos distintos, y la cuenta de cuotas).
+
+### Mutaciones
+
+Ocho nuevas en `scripts/mutaciones.edn` (revertir sin deshacer saldos, revertir dos veces, reducir varios sin repartir, transferir sin cambiar el acreedor, ignorar el cierre, olvidar lo planteado, inicia sin esperar su plazo, leer un saldo por su clave). Las 29 son detectadas, en 97 segundos.
+
+### Hallazgos de la etapa
+
+- **Los diez verbos alcanzaron.** Revertir, transferir y reducir varios se agregaron sin tocar la notación: reducir varios solo necesitaba definir cómo se reparte (D89).
+- **El saldo de un arriendo se cuenta en cuotas, no en pesos.** Así un anexo cambia el monto sin tocar el saldo, que `:modifica-compromiso` no puede tocar (D56). En pesos, el anexo habría necesitado un verbo nuevo.
+- **No hizo falta un motor de workflows.** Esperar es tener un compromiso abierto; avanzar el tiempo es mirar cuáles vencieron (D91). Lo que confirma lo que el prototipo mínimo dejó como hipótesis.
+- **El período abierto no necesita existir.** Cerrar crea la entidad; la política pregunta por su estado con un cálculo que da `:abierto` si no hay entidad.
+- **La venta de mesón y el despacho comparten el tipo de hecho**, con la entrega opcional. El hecho compuesto (D62) no pidió nada nuevo.
+- **Sin probar:** devolución de mercadería (revertir un despacho), pagar las cuotas del arriendo, y castigar una deuda vencida (inicia con `:despues` sobre un compromiso).
+
+### Pendiente
+
+- Lo tributario de la factura, los folios y el asiento contable (etapa 10).

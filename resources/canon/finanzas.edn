@@ -1,0 +1,137 @@
+;; Canon de las capacidades Finanzas y Contabilidad (prototipo ampliado, D81).
+;;
+;; Etapa 9: ceder una factura sin extinguir lo que se cobra (T8); un arriendo
+;; como compromiso con calendario que MARCO devenga al vencer cada cuota (D39,
+;; T5, T14); un anexo que reemplaza el calendario desde su fecha (D45); y el
+;; cierre del período contable (T4).
+
+{:entidades
+ [{:entidad/tipo   :periodo
+   :entidad/campos {:periodo/estado     :keyword
+                    :periodo/cerrado-en :fecha}}]
+
+ :tipos-hecho
+ [{:tipo-hecho/id      :finanzas/cesion
+   :tipo-hecho/datos   [:map
+                        [:factura [:ref :ventas/factura]]
+                        [:cesionario [:ref :proveedor]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/contrato-arriendo
+   :tipo-hecho/datos   [:map
+                        [:arrendador [:ref :proveedor]]
+                        [:monto :monto]
+                        [:cuotas :cantidad]
+                        [:desde :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/cuota
+   :tipo-hecho/datos   [:map
+                        [:arriendo [:ref :finanzas/arriendo]]
+                        [:fecha :fecha]
+                        [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/anexo
+   :tipo-hecho/datos   [:map
+                        [:arriendo [:ref :finanzas/arriendo]]
+                        [:monto :monto]
+                        [:via :keyword]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :conceptos
+ [{:concepto/id      :contabilidad/periodo
+   :concepto/version 1
+   :concepto/tipo    :clave
+   :concepto/params  {:fecha :fecha}
+   :concepto/calculo nc.calculos/periodo}
+
+  {:concepto/id      :contabilidad/estado-del-periodo
+   :concepto/version 1
+   :concepto/tipo    :clave
+   :concepto/params  {:fecha :fecha}
+   :concepto/calculo nc.calculos/estado-del-periodo}]
+
+ :contratos
+ [{:op/id        :finanzas/ceder-factura
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:factura [:ref :ventas/factura]]
+                  [:cesionario [:ref :proveedor]]]
+   :op/salidas   {:cesion cesion/id}
+   :op/efectos
+   [[:registra-hecho :finanzas/cesion entrada :como cesion]
+    [:transfiere-compromiso [:compromisos {:tipo   :ventas/por-cobrar
+                                           :origen [:-> entrada/factura :hecho/datos :pedido]
+                                           :estado :activo}]
+                            {:acreedor entrada/cesionario}]]}
+
+  {:op/id        :finanzas/registrar-arriendo
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:arrendador [:ref :proveedor]]
+                  [:monto :monto]
+                  [:cuotas :cantidad]
+                  [:desde :fecha]]
+   :op/salidas   {:arriendo arriendo/id}
+   :op/efectos
+   [[:registra-hecho :finanzas/contrato-arriendo entrada :como contrato]
+    [:abre-compromiso {:tipo       :finanzas/arriendo
+                       :deudor     empresa
+                       :acreedor   entrada/arrendador
+                       :vence      entrada/desde
+                       :origen     contrato/id
+                       :calendario {:cada [:meses 1] :monto entrada/monto}
+                       :objeto     {:cuotas entrada/cuotas}}
+     :como arriendo]]}
+
+  {:op/id        :finanzas/registrar-anexo
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:arriendo [:ref :finanzas/arriendo]]
+                  [:monto :monto]
+                  [:via :keyword]]
+   :op/salidas   {:anexo anexo/id}
+   :op/efectos
+   [[:registra-hecho :finanzas/anexo entrada :como anexo]
+    [:modifica-compromiso entrada/arriendo
+                          {:calendario {:cada  [:-> entrada/arriendo :compromiso/calendario :cada]
+                                        :monto entrada/monto}}]]}
+
+  ;; Lo hace MARCO al vencer cada cuota: registra la cuota, abre lo que se debe
+  ;; pagar, mueve el vencimiento a la cuota siguiente y descuenta una cuota del
+  ;; arriendo, que se extingue por cumplimiento con la última (D69).
+  {:op/id        :finanzas/devengar-cuota
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:arriendo [:ref :finanzas/arriendo]]]
+   :op/salidas   {:cuota cuota/id}
+   :op/efectos
+   [[:registra-hecho :finanzas/cuota {:arriendo entrada/arriendo
+                                      :fecha    [:-> entrada/arriendo :compromiso/vence]
+                                      :monto    [:-> entrada/arriendo :compromiso/calendario :monto]}
+     :como cuota]
+    [:abre-compromiso {:tipo     :finanzas/cuota-por-pagar
+                       :deudor   empresa
+                       :acreedor [:-> entrada/arriendo :compromiso/acreedor]
+                       :vence    [:-> entrada/arriendo :compromiso/vence]
+                       :origen   cuota/id
+                       :objeto   {:monto [:-> entrada/arriendo :compromiso/calendario :monto]}}]
+    [:modifica-compromiso entrada/arriendo
+                          {:vence [:+meses [:-> entrada/arriendo :compromiso/vence]
+                                           [:-> entrada/arriendo :compromiso/calendario :cada]]}]
+    [:reduce-compromiso entrada/arriendo {:cuotas [:cantidad 1 :cuota]}]]}
+
+  {:op/id        :contabilidad/cerrar-periodo
+   :op/capacidad :contabilidad
+   :op/tipo      :efecto
+   :op/entradas  [:map [:fecha :fecha]]
+   :op/salidas   {:periodo periodo/id}
+   :op/efectos
+   [[:crea-entidad :periodo {:id                 [:contabilidad/periodo {:fecha entrada/fecha}]
+                             :periodo/estado     :cerrado
+                             :periodo/cerrado-en ahora}
+     :como periodo]]}]}

@@ -85,4 +85,36 @@
   :poner "(:require [xtdb.api :as xt]"}
  {:nombre "sara.clj llama a alm/escribir!"
   :archivo "src/nc/sara.clj"
-  :agregar "\n(comment (alm/escribir! nil nil {}))\n"}]
+  :agregar "\n(comment (alm/escribir! nil nil {}))\n"}
+ {:nombre "revertir no deshace los saldos"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "(-> app (assoc-in [:hechos 0] propio) (mover h tipo -1))"
+  :poner "(-> app (assoc-in [:hechos 0] propio))"}
+ {:nombre "un hecho se revierte dos veces"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "(seq ((:hechos (contexto app)) {:revierte (:hecho/id h)}))"
+  :poner "false"}
+ {:nombre "reducir varios no reparte"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "(repartir app cs cuanto)"
+  :poner "(mapv #(reducido app % cuanto) cs)"}
+ {:nombre "transferir no cambia el acreedor"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "#(merge % (update-keys cambios (fn [k] (keyword \"compromiso\" (name k))))\n                   {:compromiso/transferido-por"
+  :poner "#(merge %\n                   {:compromiso/transferido-por"}
+ {:nombre "el cierre del período se ignora"
+  :archivo "src/nc/estado.clj"
+  :buscar ":cierre-del-periodo (version-al-cierre estado id)"
+  :poner ":cierre-del-periodo p"}
+ {:nombre "el tiempo no recuerda lo planteado"
+  :archivo "src/nc/tiempo.clj"
+  :buscar "(loop [vuelta 0, vistos (planteados estado), hecho []]"
+  :poner "(loop [vuelta 0, vistos #{}, hecho []]"}
+ {:nombre "inicia no espera su plazo"
+  :archivo "src/nc/tiempo.clj"
+  :buscar "(antes-o-en? (mas (:hecho/en h) despues) instante)"
+  :poner "true"}
+ {:nombre "un saldo se lee por su clave"
+  :archivo "src/nc/almacen.clj"
+  :buscar "{:xt/id (xt-id :saldos empresa {:saldo/concepto (first id) :saldo/clave (second id)})}"
+  :poner "{:saldo/concepto (first id) :saldo/clave (second id)}"}]

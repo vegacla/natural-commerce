@@ -2,6 +2,8 @@
 ;;
 ;; Ocho operaciones, ejecutadas por el ejecutor general sin código propio (P6).
 ;; Registrar pago se agregó en la etapa 5 solo con su contrato (E6).
+;; Etapa 9: la recepción valoriza la existencia (costo de la orden), y MARCO
+;; extingue una oferta vencida (E18).
 
 {:entidades
  [{:entidad/tipo   :producto
@@ -66,13 +68,18 @@
    :tipo-hecho/regimen :solo-agregar
    :tipo-hecho/mueve   [{:saldo :inventario/existencia
                          :clave {:producto hecho/producto :bodega hecho/bodega}
-                         :suma  {:cantidad hecho/cantidad}}]}
+                         :suma  {:cantidad hecho/cantidad
+                                 :costo    [:* hecho/cantidad [:-> hecho/orden :hecho/datos :precio-unitario]]}}]}
 
   {:tipo-hecho/id      :compras/factura
    :tipo-hecho/datos   [:map
                         [:orden [:ref :compras/orden]]
                         [:monto :monto]
                         [:vencimiento :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/vencimiento-oferta
+   :tipo-hecho/datos   [:map [:oferta [:ref :compras/oferta-vigente]]]
    :tipo-hecho/regimen :solo-agregar}
 
   {:tipo-hecho/id      :compras/pago
@@ -200,6 +207,14 @@
                   :reglas      caso/reglas
                   :por-recibir [:suma [:-> cada :compromiso/saldo :cantidad]
                                       [:compromisos {:raiz caso/id :tipo :compras/recepcion-pendiente}]]}}
+
+  {:op/id        :compras/extinguir-oferta-vencida
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map [:oferta [:ref :compras/oferta-vigente]]]
+   :op/efectos
+   [[:registra-hecho :compras/vencimiento-oferta entrada]
+    [:extingue-compromiso entrada/oferta :vencimiento]]}
 
   {:op/id        :compras/registrar-pago
    :op/capacidad :compras

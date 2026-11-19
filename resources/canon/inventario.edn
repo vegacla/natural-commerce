@@ -13,7 +13,16 @@
    :tipo-hecho/regimen :solo-agregar}]
 
  :conceptos
- [;; Existencia de la bodega, menos lo reservado, más lo que viene en camino.
+ [;; El costo unitario de lo que sale de una bodega: un cálculo en código,
+  ;; guardado con su versión (D38, D48).
+  {:concepto/id        :inventario/costo-unitario
+   :concepto/version   1
+   :concepto/tipo      :monto
+   :concepto/params    {:producto :ref :bodega :ref :metodo :clave}
+   :concepto/calculo   nc.calculos/costo-unitario
+   :concepto/evidencia :guardar}
+
+  ;; Existencia de la bodega, menos lo reservado, más lo que viene en camino.
   {:concepto/id      :inventario/disponible
    :concepto/version 1
    :concepto/tipo    :cantidad

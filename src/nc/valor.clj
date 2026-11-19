@@ -63,7 +63,7 @@
   ([x] (redondear x 0))
   ([x decimales]
    (let [r (fn [n] (let [d (.setScale (bigdec n) (int decimales) java.math.RoundingMode/HALF_UP)]
-                     (if (zero? decimales) (.toBigInteger d) d)))]
+                     (if (zero? decimales) (.longValueExact d) d)))]
      (if (valor? x) (con-numero x (r (numero x))) (r x)))))
 
 (defn- cero? [x] (and (number? x) (zero? x)))

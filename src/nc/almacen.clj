@@ -186,8 +186,11 @@
   "Un documento por su identificador de dominio, o nil."
   ([alm empresa tabla id] (leer alm empresa tabla id {}))
   ([alm empresa tabla id opts]
+   ;; Un saldo se busca por su identificador, no por su clave: XTDB no compara
+   ;; bien un mapa cuando la columna guarda claves de formas distintas
+   ;; (knowledge/xtdb-trampas.md).
    (let [filtro (if (= :saldos tabla)
-                  {:saldo/concepto (first id) :saldo/clave (second id)}
+                  {:xt/id (xt-id :saldos empresa {:saldo/concepto (first id) :saldo/clave (second id)})}
                   {(tablas tabla) id})]
      (first (buscar alm empresa tabla filtro opts)))))
 

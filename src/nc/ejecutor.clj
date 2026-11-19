@@ -45,20 +45,23 @@
 ;; --- Hechos ----------------------------------------------------------------------
 
 (defn- mover
-  "Actualiza los saldos que mueve el tipo de hecho (D57), en la misma operación."
-  [app h tipo-hecho]
-  (reduce (fn [app {:keys [saldo clave suma]}]
-            (let [ctx    (assoc-in (contexto app) [:refs 'hecho] h)
-                  clave  (e/evaluar clave ctx)
-                  k      [saldo clave]
-                  {:keys [almacen empresa]} (:estado app)
-                  actual (or (get-in app [:saldos k])
-                             (alm/leer almacen empresa :saldos k)
-                             {:saldo/concepto saldo :saldo/clave clave :saldo/valor {}})]
-              (assoc-in app [:saldos k]
-                        (update actual :saldo/valor #(merge-with v/sumar % (e/evaluar suma ctx))))))
-          app
-          (:tipo-hecho/mueve tipo-hecho)))
+  "Actualiza los saldos que mueve el tipo de hecho (D57), en la misma operación.
+  Con signo -1 deshace lo que movió: así se revierte un hecho."
+  ([app h tipo-hecho] (mover app h tipo-hecho 1))
+  ([app h tipo-hecho signo]
+   (reduce (fn [app {:keys [saldo clave suma]}]
+             (let [ctx    (assoc-in (contexto app) [:refs 'hecho] h)
+                   clave  (e/evaluar clave ctx)
+                   k      [saldo clave]
+                   {:keys [almacen empresa]} (:estado app)
+                   actual (or (get-in app [:saldos k])
+                              (alm/leer almacen empresa :saldos k)
+                              {:saldo/concepto saldo :saldo/clave clave :saldo/valor {}})
+                   suma   (update-vals (e/evaluar suma ctx) #(v/multiplicar signo %))]
+               (assoc-in app [:saldos k]
+                         (update (dissoc actual :empresa :nc/decision) :saldo/valor #(merge-with v/sumar % suma)))))
+           app
+           (:tipo-hecho/mueve tipo-hecho))))
 
 (defn- registra-hecho [app [tipo datos]]
   (let [{:keys [estado actor op refs]} app
@@ -75,6 +78,24 @@
     (when-let [error (m/explain (esq/esquema-de-datos forma) datos)]
       (e/error! :datos-invalidos (str "Datos inválidos para " tipo ": " (me/humanize error)) {:tipo tipo}))
     [(mover (update app :hechos conj h) h tipo-hecho) h]))
+
+(defn- revierte-hecho
+  "Revierte un hecho registrado antes: no lo modifica (D16). El primer hecho de
+  esta operación queda como su reversión (`:hecho/revierte`) y los saldos que el
+  hecho movió vuelven atrás. Un hecho se revierte una sola vez."
+  [app [x]]
+  (let [h        (est/leer (:estado app) (pendientes app) (if (map? x) (:hecho/id x) x))
+        tipo     (get-in app [:estado :catalogo :tipos-hecho (:hecho/tipo h)])
+        [propio] (:hechos app)]
+    (cond
+      (not (contains? h :hecho/id))
+      (e/error! :no-es-hecho (str (pr-str x) " no es un hecho") {:id x})
+      (nil? propio)
+      (e/error! :reversion-sin-hecho "Revertir exige registrar antes el hecho que revierte (D61)" {:id x})
+      (seq ((:hechos (contexto app)) {:revierte (:hecho/id h)}))
+      (e/error! :hecho-ya-revertido (str "El hecho " (:hecho/id h) " ya fue revertido") {:id (:hecho/id h)}))
+    (let [propio (assoc propio :hecho/revierte (:hecho/id h))]
+      [(-> app (assoc-in [:hechos 0] propio) (mover h tipo -1)) propio])))
 
 ;; --- Compromisos -----------------------------------------------------------------
 
@@ -101,7 +122,7 @@
   (assoc c :compromiso/estado :extinguido
            :compromiso/extincion {:causa causa :hecho (:hecho/id (first (:hechos app)))}))
 
-(defn- abre-compromiso [app [{:keys [tipo deudor acreedor estado vence origen objeto saldo]}]]
+(defn- abre-compromiso [app [{:keys [tipo deudor acreedor estado vence origen objeto saldo calendario]}]]
   (let [id   (random-uuid)
         raiz (get-in app [:caso :compromiso/id] id)
         c    (sin-nada {:compromiso/id       id
@@ -112,6 +133,7 @@
                         :compromiso/saldo    (or saldo (into {} (filter (comp v/valor? val)) objeto))
                         :compromiso/estado   (or estado :activo)
                         :compromiso/vence    vence
+                        :compromiso/calendario calendario
                         :compromiso/origen   (or origen (:hecho/id (first (:hechos app))))
                         :compromiso/raiz     raiz})
         app  (-> app (assoc-in [:compromisos id] c) (update :nuevos conj id))]
@@ -124,19 +146,49 @@
     (e/error! :modifica-estado "Un compromiso se extingue con :extingue-compromiso" {:cambios cambios}))
   (cambiar app (de-objetivo app x) #(merge % (update-keys cambios (fn [k] (keyword "compromiso" (name k)))))))
 
+(defn- reducido
+  "El compromiso con su saldo reducido; extinguido por cumplimiento si todo su
+  saldo llega a cero o menos (D69)."
+  [app c cuanto]
+  (let [c (update c :compromiso/saldo #(merge-with v/restar % (select-keys cuanto (keys %))))]
+    (if (every? #(not (pos? (v/numero %))) (vals (:compromiso/saldo c)))
+      (extinguir app c :cumplimiento)
+      c)))
+
+(defn- menor [a b] (if (neg? (v/comparar a b)) a b))
+
+(defn- repartir
+  "Reparte lo que se reduce entre varios compromisos, del que vence antes al que
+  vence después (T9). Cada uno recibe a lo más su saldo; lo que sobra queda en
+  el último, que puede quedar bajo cero si una política lo permite (D69)."
+  [app cs cuanto]
+  (let [cs (sort-by (juxt #(nil? (:compromiso/vence %)) :compromiso/vence (comp str :compromiso/id)) cs)]
+    (loop [[c & mas] cs, resto cuanto, hechos []]
+      (if (empty? mas)
+        (conj hechos (reducido app c resto))
+        (let [toma (into {} (for [[k x] resto :let [s (get-in c [:compromiso/saldo k])] :when s]
+                              [k (menor x (if (pos? (v/numero s)) s (v/multiplicar 0 s)))]))]
+          (recur mas (merge-with v/restar resto toma) (conj hechos (reducido app c toma))))))))
+
 (defn- reduce-compromiso
-  "Resta del saldo. Si todo el saldo llega a cero o menos, el compromiso queda
-  extinguido por cumplimiento (D69)."
+  "Resta del saldo de un compromiso, o reparte entre los de una colección (T9).
+  Una colección vacía no reduce nada."
   [app [x cuanto]]
   (let [cs (de-objetivo app x)]
-    (when (next cs)
-      (e/error! :reduccion-ambigua "Reducir varios compromisos a la vez no está definido" {:compromisos (map :compromiso/id cs)}))
-    (cambiar app cs (fn [c]
-                      (let [c (update c :compromiso/saldo
-                                      #(merge-with v/restar % (select-keys cuanto (keys %))))]
-                        (if (every? #(not (pos? (v/numero %))) (vals (:compromiso/saldo c)))
-                          (extinguir app c :cumplimiento)
-                          c))))))
+    (if (empty? cs)
+      [app []]
+      (let [nuevos (if (sequential? x) (repartir app cs cuanto) [(reducido app (first cs) cuanto)])]
+        (cambiar app nuevos identity)))))
+
+(defn- transfiere-compromiso
+  "Cambia el acreedor o el deudor de un compromiso sin extinguirlo: su saldo no
+  cambia (T8). Va con el hecho que lo justifica (D61)."
+  [app [x cambios]]
+  (when-let [otros (seq (remove #{:acreedor :deudor} (keys cambios)))]
+    (e/error! :transferencia-invalida (str "Transferir cambia acreedor o deudor, no " (vec otros)) {:cambios cambios}))
+  (cambiar app (de-objetivo app x)
+           #(merge % (update-keys cambios (fn [k] (keyword "compromiso" (name k))))
+                   {:compromiso/transferido-por (:hecho/id (first (:hechos app)))})))
 
 (defn- extingue-compromiso [app [x causa]]
   (cambiar app (de-objetivo app x) #(extinguir app % causa)))
@@ -203,7 +255,9 @@
    :abre-compromiso     abre-compromiso
    :modifica-compromiso modifica-compromiso
    :reduce-compromiso   reduce-compromiso
-   :extingue-compromiso extingue-compromiso})
+   :extingue-compromiso extingue-compromiso
+   :transfiere-compromiso transfiere-compromiso
+   :revierte-hecho      revierte-hecho})
 
 ;; --- Efectos ---------------------------------------------------------------------
 
@@ -273,7 +327,7 @@
 
 (defn- decision
   "Lo que MARCO decidió en una evaluación, para la bitácora."
-  [{:keys [op actor entradas resolucion cambios error]} resultado {:keys [confirmado origen]}]
+  [{:keys [op actor entradas resolucion cambios error]} resultado {:keys [confirmado origen evento]}]
   (sin-nada {:decision/id           (random-uuid)
              :decision/en           (java.util.Date.)
              :decision/actor        actor
@@ -286,6 +340,7 @@
              :decision/confirmacion (confirmacion resolucion confirmado)
              :decision/caso         (:caso resolucion)
              :decision/error        error
+             :decision/evento       evento
              :decision/hechos       (when (= :ejecutado resultado) (mapv :hecho/id (:hechos cambios)))}))
 
 (defn- anotar!
@@ -307,30 +362,38 @@
   "Un objetivo iniciado puede iniciar otros; la cadena se corta aquí."
   3)
 
+(defn plantear!
+  "MARCO plantea el objetivo de una política \"inicia\" con su propia identidad:
+  lo ejecuta si puede, sin confirmación solo si una política lo exime; si no,
+  queda propuesto, con lo que falta (D51, D87). `refs` es lo que vio el evento
+  ('hecho registrado o 'compromiso que vence). Nil si la condición no se cumple."
+  [estado p refs {:keys [profundidad evento] :or {profundidad 0}}]
+  (let [{:keys [objetivo entradas]} (:politica/cuerpo p)
+        ctx (est/contexto estado (merge {'actor actor-marco 'empresa (:empresa estado) 'ahora (est/ahora estado)}
+                                        refs))]
+    (when (and (< profundidad profundidad-maxima)
+               (or (not (contains? p :politica/cuando))
+                   (true? (:valor (e/evaluar-seguro (:politica/cuando p) ctx)))))
+      (let [ents (e/evaluar (or entradas {}) ctx)
+            res  (ejecutar! estado actor-marco objetivo ents
+                            (cond-> {:origen :marco :profundidad (inc profundidad)} evento (assoc :evento evento)))]
+        {:politica   (:politica/id p)
+         :objetivo   objetivo
+         :entradas   ents
+         :estado     (:estado res)
+         :decision   (:decision res)
+         :requisitos (vec (remove #(#{:satisfecho :opcional} (:estado %)) (:requisitos res)))}))))
+
 (defn- iniciar!
-  "Las políticas \"inicia\" que se disparan con los hechos escritos: MARCO
-  plantea su objetivo con su propia identidad y lo ejecuta si puede, sin
-  confirmación solo si una política lo exime; si no, queda propuesto, con lo que
-  falta (D51). Una con `:despues` espera al tiempo (etapa 9) y no se dispara aquí."
+  "Las políticas \"inicia\" que se disparan con los hechos escritos. Una con
+  `:despues` espera al tiempo: la dispara `nc.tiempo`."
   [estado hechos {:keys [profundidad] :or {profundidad 0}}]
-  (when (< profundidad profundidad-maxima)
-    (vec (for [h hechos
-               p (est/de-evento estado [:registra (:hecho/tipo h)])
-               :let [{:keys [objetivo entradas despues]} (:politica/cuerpo p)
-                     ctx (est/contexto estado {'hecho h 'actor actor-marco 'empresa (:empresa estado)
-                                               'ahora (est/ahora estado)})]
-               :when (and (nil? despues)
-                          (or (not (contains? p :politica/cuando))
-                              (true? (:valor (e/evaluar-seguro (:politica/cuando p) ctx)))))
-               :let [ents (e/evaluar (or entradas {}) ctx)
-                     res  (ejecutar! estado actor-marco objetivo ents
-                                     {:origen :marco :profundidad (inc profundidad)})]]
-           {:politica  (:politica/id p)
-            :objetivo  objetivo
-            :entradas  ents
-            :estado    (:estado res)
-            :decision  (:decision res)
-            :requisitos (vec (remove #(#{:satisfecho :opcional} (:estado %)) (:requisitos res)))}))))
+  (vec (for [h hechos
+             p (est/de-evento estado [:registra (:hecho/tipo h)])
+             :when (nil? (get-in p [:politica/cuerpo :despues]))
+             :let [r (plantear! estado p {'hecho h} {:profundidad profundidad})]
+             :when r]
+         r)))
 
 ;; --- Ejecución ---------------------------------------------------------------------
 

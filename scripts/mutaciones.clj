@@ -14,11 +14,21 @@
             [clojure.string :as str]
             [clojure.test :as t]))
 
-(def pruebas
+(def ^:private orden-conocido
   "Los archivos de prueba, de los más rápidos a los más lentos (2026-11-19)."
   '[nc.resguardos-test nc.catalogo-test nc.expresion-test nc.maestros-test nc.extension-test
     nc.separacion-test nc.almacen-test nc.planificacion-test nc.concurrencia-test nc.sara-test
-    nc.bitacora-test nc.formas-test nc.marco-test nc.respaldo-test])
+    nc.bitacora-test nc.formas-test nc.verbos-test nc.marco-test nc.respaldo-test])
+
+(def pruebas
+  "Todos los archivos de prueba de test/nc: los conocidos en su orden, y uno
+  nuevo al final, para que ninguno quede fuera."
+  (let [todos (for [f (file-seq (java.io.File. "test/nc"))
+                    :let [n (.getName f)]
+                    :when (.endsWith n "_test.clj")]
+                (symbol (str "nc." (-> n (str/replace #"\.clj$" "") (str/replace "_" "-")))))
+        lugar (into {} (map-indexed (fn [i n] [n i])) orden-conocido)]
+    (vec (sort-by #(get lugar % 999) todos))))
 
 (defn- namespace-de [archivo]
   (-> archivo (str/replace #"^src/" "") (str/replace #"\.clj$" "")

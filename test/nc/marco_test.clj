@@ -109,8 +109,8 @@
         (is (= {:cantidad [:cantidad 8 :un]}
                (:compromiso/saldo (de-la-orden :compras/recepcion-pendiente))))
         (is (= :activo (:compromiso/estado (de-la-orden :compras/recepcion-pendiente)))))
-      (testing "la recepción movió la existencia de la bodega (D57)"
-        (is (= {:cantidad [:cantidad 12 :un]}
+      (testing "la recepción movió la existencia de la bodega, valorizada al precio de la orden (D57)"
+        (is (= {:cantidad [:cantidad 12 :un] :costo [:monto 360000 :CLP]}
                (:saldo/valor (alm/leer *alm* (:empresa a) :saldos
                                        [:inventario/existencia {:producto :P-100 :bodega :bodega/central}])))))
       (testing "consultar el estado de la adquisición"

@@ -117,6 +117,22 @@
 (defn- version [{:keys [almacen empresa]} id v]
   (some #(when (= v (:politica/version %)) %) (alm/historia almacen empresa :politicas id)))
 
+(defn ultimo-cierre
+  "Cuándo se cerró el último período contable de la empresa, o nil (T4, H4)."
+  [{:keys [almacen empresa consulta]}]
+  (some->> (alm/buscar almacen empresa :entidades {:entidad/tipo :periodo :periodo/estado :cerrado} consulta)
+           (keep :periodo/cerrado-en)
+           seq
+           (apply max-key #(.getTime ^Date %))))
+
+(defn- version-al-cierre
+  "La versión que regía al último cierre de período; sin cierres, la primera.
+  Un cambio rige desde el cierre siguiente, sin recálculo hacia atrás (D44)."
+  [{:keys [almacen empresa] :as estado} id]
+  (if-let [c (ultimo-cierre estado)]
+    (alm/vigente almacen empresa :politicas id {:validez c})
+    (first (sort-by :politica/version (alm/historia almacen empresa :politicas id)))))
+
 (defn- aplica-a? [politica op]
   (let [a (:politica/aplica-a politica)]
     (or (= a op) (and (set? a) (contains? a op)))))
@@ -136,6 +152,7 @@
                                  (nil? caso)                                p
                                  (= (get del-caso id) (:politica/version p)) p
                                  (get del-caso id)                          (version estado id (get del-caso id)))
+              :cierre-del-periodo (version-al-cierre estado id)
               (throw (ex-info (str "Opción de vigencia no implementada: " aplica-con)
                               {:nc/error :opcion-no-implementada :politica id}))))
           (filter #(aplica-a? % op) (vigentes estado)))))

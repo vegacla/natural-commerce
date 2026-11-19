@@ -33,8 +33,8 @@
     (let [orden-a (-> (m/ejecutar! a :persona/ana :compras/emitir-orden m/orden-20) :salidas :orden)]
       (m/ejecutar! a :persona/ana :compras/registrar-recepcion (recepcion orden-a 12))
       (testing "los efectos de A no tocan los saldos ni los compromisos de B"
-        (is (= {:cantidad [:cantidad 12 :un]} (:saldo/valor (existencia a))))
-        (is (= {:cantidad [:cantidad 5 :un]} (:saldo/valor (existencia b))))
+        (is (= {:cantidad [:cantidad 12 :un] :costo [:monto 360000 :CLP]} (:saldo/valor (existencia a))))
+        (is (= {:cantidad [:cantidad 5 :un] :costo [:monto 150000 :CLP]} (:saldo/valor (existencia b))))
         (is (= :activo (:compromiso/estado (m/compromiso b abierta-b)))))
       (testing "A no ve los datos de B, ni por su identificador ni buscando"
         (is (nil? (est/leer a solicitud)))
@@ -53,7 +53,7 @@
                                                                      :entrada/solicitud))))))
         (is (= :bloqueado (:estado (m/ejecutar! a :persona/ana :compras/registrar-recepcion (recepcion orden-b 1)))))
         (is (= :bloqueado (:estado (ej/ejecutar! a :persona/ana :compras/consultar-estado {:orden orden-b} {}))))
-        (is (= {:cantidad [:cantidad 5 :un]} (:saldo/valor (existencia b)))))
+        (is (= {:cantidad [:cantidad 5 :un] :costo [:monto 150000 :CLP]} (:saldo/valor (existencia b)))))
       (testing "la consulta de estado de A solo ve su caso"
         (let [{:keys [hechos compromisos]} (:salidas (ej/ejecutar! a :persona/ana :compras/consultar-estado
                                                                    {:orden orden-a} {}))]

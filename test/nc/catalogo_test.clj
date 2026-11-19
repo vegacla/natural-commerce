@@ -17,7 +17,9 @@
 
 (deftest el-catalogo-es-valido
   (is (empty? (cat/problemas catalogo)))
-  (is (= 8 (count (:contratos catalogo))))
+  (is (= 9 (count (:contratos catalogo))))
+  (testing "el canon completo, con todas sus capacidades, también es válido"
+    (is (empty? (cat/problemas (cat/de-empresa empresa-b)))))
   (testing "el campo propio de la Empresa B entra al catálogo (D3)"
     (is (contains? (:campos catalogo) :producto.b/requiere-certificado))))
 

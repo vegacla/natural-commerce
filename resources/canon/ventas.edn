@@ -6,6 +6,12 @@
 ;;
 ;; Etapa 8: el pedido. Abre la entrega pendiente y el cobro latente, que activará
 ;; la factura. El cupo disponible es un concepto (H3).
+;;
+;; Etapa 9: despachar (un hecho reduce la entrega y la reserva, T9, con costo de
+;; un cálculo algorítmico), facturar, cobrar varias facturas con un pago (T9),
+;; vender en mesón (hecho compuesto, D62) y revertir una factura con una nota de
+;; crédito (D16). Lo tributario de la factura llega en la etapa 10, como
+;; política legal, sin cambiar este contrato.
 
 {:entidades
  [{:entidad/tipo   :cliente
@@ -20,6 +26,55 @@
                         [:producto [:ref :producto]]
                         [:cantidad :cantidad]
                         [:precio-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/despacho
+   :tipo-hecho/datos   [:map
+                        [:entrega {:optional true} [:ref :ventas/entrega-pendiente]]
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]
+                        [:costo-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/bodega}
+                         :suma  {:cantidad [:* -1 hecho/cantidad]
+                                 :costo    [:* -1 hecho/cantidad hecho/costo-unitario]}}]}
+
+  {:tipo-hecho/id      :ventas/factura
+   :tipo-hecho/datos   [:map
+                        [:pedido [:ref :ventas/pedido]]
+                        [:monto :monto]
+                        [:fecha :fecha]
+                        [:vencimiento :fecha]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :ventas/facturado
+                         :clave {:cliente [:-> hecho/pedido :hecho/datos :cliente]}
+                         :suma  {:monto hecho/monto}}]}
+
+  {:tipo-hecho/id      :ventas/nota-credito
+   :tipo-hecho/datos   [:map
+                        [:factura [:ref :ventas/factura]]
+                        [:monto :monto]
+                        [:fecha :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/cobro
+   :tipo-hecho/datos   [:map
+                        [:cliente [:ref :cliente]]
+                        [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/boleta
+   :tipo-hecho/datos   [:map
+                        [:producto [:ref :producto]]
+                        [:cantidad :cantidad]
+                        [:precio-unitario :monto]
+                        [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/cobro-contado
+   :tipo-hecho/datos   [:map [:monto :monto]]
    :tipo-hecho/regimen :solo-agregar}]
 
  :conceptos
@@ -92,4 +147,95 @@
                        :acreedor empresa
                        :estado   :latente
                        :origen   pedido/id
-                       :objeto   {:monto [:* entrada/cantidad entrada/precio-unitario]}}]]}]}
+                       :objeto   {:monto [:* entrada/cantidad entrada/precio-unitario]}}]]}
+
+  {:op/id        :ventas/despachar
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:entrega [:ref :ventas/entrega-pendiente]]
+                  [:producto [:ref :producto]]
+                  [:bodega [:ref :bodega]]
+                  [:cantidad :cantidad]
+                  [:metodo {:optional true} :keyword]]
+   :op/salidas   {:despacho despacho/id}
+   :op/efectos
+   [[:registra-hecho :ventas/despacho
+     {:entrega        entrada/entrega
+      :producto       entrada/producto
+      :bodega         entrada/bodega
+      :cantidad       entrada/cantidad
+      :costo-unitario [:inventario/costo-unitario {:producto entrada/producto :bodega entrada/bodega
+                                                   :metodo entrada/metodo}]}
+     :como despacho]
+    [:reduce-compromiso entrada/entrega {:cantidad entrada/cantidad}]
+    [:reduce-compromiso [:compromisos {:tipo :inventario/reservado :raiz caso/id :estado :activo}]
+                        {:cantidad entrada/cantidad}]]}
+
+  {:op/id        :ventas/emitir-factura
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:pedido [:ref :ventas/pedido]]
+                  [:monto :monto]
+                  [:fecha :fecha]
+                  [:vencimiento :fecha]]
+   :op/salidas   {:factura factura/id}
+   :op/efectos
+   [[:registra-hecho :ventas/factura entrada :como factura]
+    [:modifica-compromiso [:compromisos {:tipo :ventas/por-cobrar :origen entrada/pedido}]
+                          {:estado :activo :vence entrada/vencimiento}]]}
+
+  {:op/id        :ventas/registrar-cobro
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:monto :monto]]
+   :op/salidas   {:cobro cobro/id}
+   :op/efectos
+   [[:registra-hecho :ventas/cobro entrada :como cobro]
+    [:reduce-compromiso [:compromisos {:tipo :ventas/por-cobrar :deudor entrada/cliente :acreedor empresa
+                                       :estado :activo}]
+                        {:monto entrada/monto}]]}
+
+  {:op/id        :ventas/venta-mostrador
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:producto [:ref :producto]]
+                  [:bodega [:ref :bodega]]
+                  [:cantidad :cantidad]
+                  [:precio-unitario :monto]]
+   :op/salidas   {:boleta boleta/id}
+   :op/efectos
+   [[:registra-hecho :ventas/boleta {:producto        entrada/producto
+                                     :cantidad        entrada/cantidad
+                                     :precio-unitario entrada/precio-unitario
+                                     :monto           [:* entrada/cantidad entrada/precio-unitario]}
+     :como boleta]
+    [:registra-hecho :ventas/despacho
+     {:producto       entrada/producto
+      :bodega         entrada/bodega
+      :cantidad       entrada/cantidad
+      :costo-unitario [:inventario/costo-unitario {:producto entrada/producto :bodega entrada/bodega
+                                                   :metodo nil}]}]
+    [:registra-hecho :ventas/cobro-contado {:monto [:* entrada/cantidad entrada/precio-unitario]}]]}
+
+  {:op/id        :ventas/emitir-nota-credito
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:factura [:ref :ventas/factura]]
+                  [:fecha :fecha]]
+   :op/salidas   {:nota nota/id}
+   :op/efectos
+   [[:registra-hecho :ventas/nota-credito {:factura entrada/factura
+                                           :monto   [:-> entrada/factura :hecho/datos :monto]
+                                           :fecha   entrada/fecha}
+     :como nota]
+    [:revierte-hecho entrada/factura]
+    [:reduce-compromiso [:compromisos {:tipo   :ventas/por-cobrar
+                                       :origen [:-> entrada/factura :hecho/datos :pedido]
+                                       :estado :activo}]
+                        {:monto [:-> entrada/factura :hecho/datos :monto]}]]}]}
