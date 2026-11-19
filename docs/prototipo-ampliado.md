@@ -1,6 +1,6 @@
 # Natural Commerce — Prototipo ampliado: el modelo como ERP
 
-Fecha: 2026-11-18. Estado: propuesta. Complementa `prototipo-minimo.md` y `registro-de-decisiones.md`.
+Fecha: 2026-11-18. Estado: aprobado (D81). La bitácora de MARCO es D82. Complementa `prototipo-minimo.md` y `registro-de-decisiones.md`.
 
 ## 1. Propósito
 
@@ -74,7 +74,7 @@ Se propone:
 2. **Garantía estructural.** El almacén solo acepta una escritura de hechos, compromisos y saldos que traiga una decisión ejecutada, y escribe la bitácora en la misma transacción. Una prueba verifica que solo el ejecutor llama a `escribir!`, y las mutaciones (`scripts/mutaciones.py`) confirman que la prueba lo detecta.
 3. **Invariantes.** Una verificación que recorre la base de una empresa: todo hecho tiene la decisión ejecutada que lo produjo; toda decisión ejecutada tiene sus hechos; ninguna decisión ejecutada tenía requisitos pendientes ni le faltaba confirmación. Corre al final de cada escenario.
 
-Es una decisión de plataforma nueva: se registra al aprobar esta propuesta.
+Registrada como D82.
 
 ## 4. Operaciones nuevas
 

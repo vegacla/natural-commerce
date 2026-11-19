@@ -1,8 +1,8 @@
 # Natural Commerce — Registro de decisiones
 
-Actualizado: 2026-11-17. Origen: sesión de descubrimiento sobre "Visión funcional de SARA y MARCO".
-Estado: modelo cerrado; prototipo en construcción (Clojure + XTDB), etapas 1 a 6 hechas (E1 a E9 y SARA mínima).
-Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.md`, `notacion-v0.md`.
+Actualizado: 2026-11-18. Origen: sesión de descubrimiento sobre "Visión funcional de SARA y MARCO".
+Estado: modelo cerrado; prototipo mínimo hecho (etapas 1 a 6, E1 a E9 y SARA mínima); prototipo ampliado aprobado (D81), etapas 7 a 13.
+Documentos relacionados: `prototipo-minimo.md`, `prototipo-ampliado.md`, `analisis-universo-operaciones.md`, `notacion-v0.md`.
 
 ## 0. El modelo en una página
 
@@ -104,6 +104,8 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 | D78 | SARA genera la interfaz de una operación con dos cosas: el contrato (entradas y salidas declaradas) y la respuesta del resolvedor. No tiene código propio para ninguna operación. Los textos son plantillas sobre el vocabulario del resolvedor (falta, se registra con, puede hacerlo, cumplido). | Resuelve P12: la respuesta del resolvedor sola no basta, porque no trae el tipo de cada campo; junto con el contrato, sí. |
 | D79 | Se sigue con Clojure y XTDB. Antes de guardar datos de clientes hacen falta cuatro cosas: un log durable y replicado, un almacén de objetos con versionado y un respaldo ensayado, una suscripción de soporte, y evaluar las bases múltiples de XTDB para separar empresas. | Aplica el criterio de salida del prototipo: E1 a E7 y E9 pasan con cuatro rodeos menores, y la revisión de madurez (`revision-xtdb.md`) no encontró impedimentos. Respaldar y restaurar se probó con los datos de ejemplo. |
 | D80 | La cuarta condición de D79 (bases múltiples de XTDB) se descarta: se mantiene una sola base con separación por empresa (D22). En su lugar, la separación se protege con resguardos en código y reglas: filtro por empresa en un solo lugar, pruebas que fallan si se quita, y una regla que impide consultas sin empresa. | Una evaluación con XTDB 2.2 mostró que cada empresa en su base aísla las consultas sin calificar, pero exige migrar el almacén de la API en proceso a JDBC, no es frontera de seguridad (un nombre calificado cruza bases) y su costo por empresa no está medido. Basta filtrar bien. |
+| D81 | Se amplía el prototipo para probar que el modelo sirve para un ERP y cumple la visión: cada mecanismo del modelo se ejercita al menos una vez, con quince operaciones nuevas y los escenarios E10 a E27 (`prototipo-ampliado.md`). | El prototipo mínimo decidió el stack, pero con lo implementado solo 6 de las 74 operaciones del análisis son expresables. |
+| D82 | MARCO guarda una bitácora inmutable por empresa con cada evaluación de una operación, también las rechazadas: actor, operación, entradas, origen, resultado, razones, versiones de las políticas y confirmación. El almacén solo acepta escribir hechos, compromisos y saldos junto con una decisión ejecutada, y la escribe en la misma transacción. Una verificación de invariantes comprueba que todo hecho tiene la decisión que lo produjo. | Sin ella no se puede demostrar que nada se ejecutó sin que MARCO lo validara (visión, criterio 5), y menos con un LLM en SARA (E23). Hoy los rechazos no dejan rastro y escribir sin MARCO depende de la disciplina, como el filtro por empresa antes de D80. No es un hecho del negocio: va en una tabla propia. |
 
 ## 2. Criterios para elegir stack
 
@@ -140,6 +142,6 @@ Documentos relacionados: `prototipo-minimo.md`, `analisis-universo-operaciones.m
 
 ## 5. Pendiente
 
+- Prototipo ampliado (D81): etapas 7 a 13.
 - Tres condiciones de D79 (log durable y replicado, almacén de objetos con respaldo ensayado, soporte), antes de datos de clientes. La cuarta se resolvió con D80.
-- Resguardos de la separación por empresa (D80).
 - Paquete legal chileno inicial, desde fuentes del SII.
