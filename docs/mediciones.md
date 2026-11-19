@@ -389,7 +389,9 @@ Ninguno. Las tablas son otra tabla versionada, como las políticas.
 
 ### Mutaciones
 
-`scripts/mutaciones.py` suma ocho mutaciones (sugiere no llena, fija acepta otro valor, limita no prohíbe, inicia no se dispara, MARCO se confirma a sí mismo, dos fija no chocan, la empresa edita una legal, la combinación de la empresa se ignora). **La corrida no terminó**: el sistema la detuvo por falta de memoria. Una mutación quedó aplicada y se restauró a mano; las pruebas pasan sobre el código restaurado. Queda pendiente correr las 21.
+`scripts/mutaciones.py` suma ocho mutaciones (sugiere no llena, fija acepta otro valor, limita no prohíbe, inicia no se dispara, MARCO se confirma a sí mismo, dos fija no chocan, la empresa edita una legal, la combinación de la empresa se ignora). Las 21 del script son detectadas.
+
+La primera corrida no terminó: el sistema la detuvo por falta de memoria del equipo, con una mutación aplicada que se restauró a mano. La suite usa como máximo unos 700 MB; la presión venía del resto del equipo. Desde entonces la JVM de pruebas tiene tope (`-Xmx768m`, pico medido 545 MB) y el script corre en tandas en primer plano, imprimiendo cada resultado al salir.
 
 ### Hallazgos de la etapa
 
@@ -401,5 +403,4 @@ Ninguno. Las tablas son otra tabla versionada, como las políticas.
 
 ### Pendiente
 
-- Correr las 21 mutaciones.
 - "Inicia" con `:despues` (etapa 9).

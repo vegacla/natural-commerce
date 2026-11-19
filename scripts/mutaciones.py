@@ -3,10 +3,10 @@
 Rompe cada resguardo de src/nc/almacen.clj (y la regla de que solo el almacén
 toca XTDB), corre la suite y muestra qué pruebas fallan. Cada mutación debe
 hacer fallar al menos una prueba; si no, falta una prueba. Restaura los archivos
-al terminar. Uso, desde la raíz del proyecto: python scripts/mutaciones.py
+al terminar. Uso, desde la raíz del proyecto: python scripts/mutaciones.py [desde hasta]
 Requiere `deps` en el PATH. Ajustar JAVA_CMD si el JDK 21 está en otra ruta.
 """
-import subprocess, re, shutil, os
+import subprocess, re, shutil, os, sys
 ALM='src/nc/almacen.clj'; WEB='src/nc/sara/web.clj'; SARA='src/nc/sara.clj'
 EJE='src/nc/ejecutor.clj'; RES='src/nc/resolvedor.clj'; POL='src/nc/politicas.clj'
 env=dict(os.environ, JAVA_CMD=os.environ.get("JAVA_CMD") or "C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe")
@@ -42,23 +42,35 @@ muts=[
  ("la empresa edita una legal",POL,"(and (= :empresa autor) (or (legal? p) (legal? anterior)))","false"),
  ("la combinación de la empresa se ignora",RES,"(if (= :basta-una (est/combinacion estado :exime))","(if false"),
 ]
-res=[]
-for nombre,f,a,b in muts:
+def reemplazo(a,b):
+    def cambio(o):
+        o=o.replace('\r\n','\n')
+        if a not in o: raise LookupError("patrón no encontrado")
+        return o.replace(a,b,1)
+    return cambio
+
+# Las textuales, y dos estáticas: otro módulo requiere xtdb, u otro módulo
+# escribe sin pasar por el ejecutor.
+todas=[(nombre,f,reemplazo(a,b)) for nombre,f,a,b in muts]+[
+    ("web.clj requiere xtdb",WEB,lambda o:o.replace("(:require","(:require [xtdb.api :as xt]",1)),
+    ("sara.clj llama a alm/escribir!",SARA,lambda o:o+"\n(comment (alm/escribir! nil nil {}))\n")]
+
+# Tandas: `python scripts/mutaciones.py 0 10` corre las mutaciones 0 a 9. Cada
+# tanda cabe en un comando en primer plano; cada resultado se imprime al salir,
+# para no perderlo si la corrida se corta.
+desde=int(sys.argv[1]) if len(sys.argv)>1 else 0
+hasta=int(sys.argv[2]) if len(sys.argv)>2 else len(todas)
+print(f"Mutaciones {desde} a {min(hasta,len(todas))-1} de {len(todas)}", flush=True)
+for n,(nombre,f,cambio) in enumerate(todas[desde:hasta], start=desde):
     orig=open(f,encoding='utf-8',newline='').read()
-    o=orig.replace('\r\n','\n')
-    if a not in o: res.append((nombre,"PATRÓN NO ENCONTRADO",[])); continue
     try:
-        open(f,'w',encoding='utf-8',newline='').write(o.replace(a,b,1))
-        res.append((nombre,)+run())
+        try:
+            mutado=cambio(orig)
+        except LookupError:
+            print(n,nombre,"PATRÓN NO ENCONTRADO",flush=True); continue
+        open(f,'w',encoding='utf-8',newline='').write(mutado)
+        cuenta,fallan=run()
+        detectada=len(cuenta)==3 and (cuenta[1]!='0' or cuenta[2]!='0') or cuenta==("?",)
+        print(n,nombre,cuenta,fallan,"" if detectada else "NO DETECTADA",flush=True)
     finally:
         open(f,'w',encoding='utf-8',newline='').write(orig)
-# mutaciones estáticas: otro módulo requiere xtdb, u otro módulo escribe sin pasar por el ejecutor
-for nombre,f,cambio in [("web.clj requiere xtdb",WEB,lambda o:o.replace("(:require","(:require [xtdb.api :as xt]",1)),
-                        ("sara.clj llama a alm/escribir!",SARA,lambda o:o+"\n(comment (alm/escribir! nil nil {}))\n")]:
-    orig=open(f,encoding='utf-8',newline='').read()
-    try:
-        open(f,'w',encoding='utf-8',newline='').write(cambio(orig))
-        res.append((nombre,)+run())
-    finally:
-        open(f,'w',encoding='utf-8',newline='').write(orig)
-for r in res: print(r)
