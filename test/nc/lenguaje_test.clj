@@ -9,6 +9,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [nc.almacen :as alm]
             [nc.bitacora :as bit]
+            [nc.ejecutor :as ej]
             [nc.estado :as est]
             [nc.marco-test :as m]
             [nc.plan :as plan]
@@ -175,3 +176,18 @@
                                           {:operacion :compras/emitir-orden :entradas m/orden-20}))))]
         (is (= 1 (pasos a)))
         (is (= 5 (pasos b)))))))
+
+;; --- Lo que encontró Claude de verdad ---------------------------------------------
+
+(deftest una-consulta-sin-caso-no-esta-lista
+  (testing "Claude llamó a consultar-estado sin orden ni solicitud: MARCO la daba por
+  lista y se caía al leer caso/id. Ahora queda bloqueada y pide lo que daría el caso."
+    (let [a (m/empresa! {})
+          [modelo] (guion {"¿cómo va la compra?" (fn [_] (llamada "compras__consultar-estado" {}))})
+          c (sl/turno! a :persona/ana modelo (sl/conversacion) "¿cómo va la compra?")
+          r (ej/ejecutar! a :persona/ana :compras/consultar-estado {} {})]
+      (is (= :bloqueado (get-in c [:respuesta :estado])))
+      (is (= :bloqueado (:estado r)))
+      (is (= [:entrada/orden :entrada/solicitud]
+             (:pide (first (filter #(= :caso (:id %)) (:requisitos r))))))
+      (is (= [] (bit/verificar m/*alm* (:empresa a)))))))

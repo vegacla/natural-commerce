@@ -6,7 +6,7 @@ Observado el 19 de noviembre de 2026, con `com.anthropic/anthropic-java` 3.10.0 
 
 El SDK depende de okhttp 4.12 y XTDB de okhttp 5.5. tools.deps resuelve una sola versión en el classpath. Una llamada real a la API de mensajes desde `nc.sara.claude`, en la misma JVM con un nodo XTDB abierto, salió y volvió con la respuesta del servidor (un 400 por falta de crédito, interpretado por el SDK como `BadRequestException`). No hubo `NoSuchMethodError` ni `ClassNotFoundException`.
 
-Verificado con `.\e23-claude.ps1`. Lo que no se verificó: una respuesta exitosa completa (con herramientas), por falta de crédito.
+Verificado con `.\e23-claude.ps1`: primero con el 400 y después, con crédito, con respuestas completas que usan herramientas (20 llamadas a Haiku 5.5).
 
 ## Errores de la cuenta, no del código
 

@@ -289,6 +289,23 @@
           :else (assoc base :estado :prohibido
                        :razon (str "Supera el límite de " id ": " (pr-str x) " sobre " (pr-str (if tol tope m)))))))))
 
+;; --- Caso de una consulta ----------------------------------------------------------
+
+(defn- requisito-caso
+  "Una consulta cuyas salidas leen el caso (`caso/...`) no está lista sin caso:
+  pide las entradas que lo darían. Una operación con efectos no lo necesita: sin
+  caso, el primer compromiso que abra será la raíz (D15)."
+  [contrato caso]
+  (when (and (nil? caso) (not= :efecto (:op/tipo contrato))
+             (some #(and (symbol? %) (= "caso" (namespace %)))
+                   (tree-seq coll? seq (:op/salidas contrato))))
+    [{:id     :caso
+      :estado :indeterminado
+      :pide   (vec (for [[k {forma :tipo}] (esq/campos-ordenados (:op/entradas contrato))
+                         :when (and (vector? forma) (= :ref (first forma)))]
+                     (entrada k)))
+      :razon  "Ninguna entrada dice de qué caso se trata"}]))
+
 ;; --- Respuesta -------------------------------------------------------------------
 
 (defn- estado-general [requisitos]
@@ -331,6 +348,7 @@
                                 [{:id :plan :estado :prohibido
                                   :razon (str "La capacidad " (:op/capacidad contrato) " no está en el plan contratado")}])
                               requisitos
+                              (requisito-caso contrato caso)
                               fijadas
                               exigidos
                               (when-not puede

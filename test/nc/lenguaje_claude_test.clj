@@ -31,7 +31,7 @@
                   c   (if (and (= :por-confirmar (:estado r)) (not (sl/irreversible? estado (:operacion r))))
                         (sl/confirmar! estado :persona/ana c)
                         c)]
-              [c (conj registro [texto (:operacion r) (:estado r) (get-in c [:respuesta :estado])])]))
+              [c (conj registro [texto (:operacion r) (:estado r) (get-in c [:respuesta :estado]) (:texto r)])]))
           [(sl/conversacion) []]
           frases))
 
@@ -51,7 +51,7 @@
                        {:pedido pedido :monto [:monto 50000 :CLP] :fecha (java.util.Date.) :vencimiento (m/dias-desde-hoy 30)})))
       (let [[_ registro] (conversar! b modelo)
             decisiones (bit/decisiones m/*alm* (:empresa b) {:decision/origen :sara})]
-        (println "E23 con Claude: frase → operación elegida, respuesta de MARCO, después de confirmar")
+        (println "E23 con Claude: frase → operación elegida, respuesta de MARCO, después de confirmar, lo que dijo SARA")
         (doseq [fila registro] (println "  " (pr-str fila)))
         (testing "toda decisión pedida por SARA está en la bitácora, y los invariantes se cumplen"
           (is (= [] (bit/verificar m/*alm* (:empresa b)))))

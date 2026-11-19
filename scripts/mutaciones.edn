@@ -203,4 +203,8 @@
  {:nombre "una colección de referencias no se revisa"
   :archivo "src/nc/resolvedor.clj"
   :buscar "(some #(problema-de-referencia estado (second forma) %) valor)"
+  :poner "nil"}
+ {:nombre "una consulta que lee el caso se da por lista sin caso"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(requisito-caso contrato caso)"
   :poner "nil"}]
