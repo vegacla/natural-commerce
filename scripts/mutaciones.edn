@@ -174,12 +174,12 @@
  ;; Etapa 12: SARA con lenguaje (D100).
  {:nombre "SARA se confirma a sí misma"
   :archivo "src/nc/sara/lenguaje.clj"
-  :buscar "(ej/ejecutar! estado actor operacion entradas {:origen :sara})))"
-  :poner "(ej/ejecutar! estado actor operacion entradas {:origen :sara :confirmado true})))"}
+  :buscar "(marco! estado actor operacion entradas {:origen :sara})))"
+  :poner "(marco! estado actor operacion entradas {:origen :sara :confirmado true})))"}
  {:nombre "SARA no anota su origen"
   :archivo "src/nc/sara/lenguaje.clj"
-  :buscar "(ej/ejecutar! estado actor operacion entradas {:origen :sara})))"
-  :poner "(ej/ejecutar! estado actor operacion entradas {})))"}
+  :buscar "(marco! estado actor operacion entradas {:origen :sara})))"
+  :poner "(marco! estado actor operacion entradas {})))"}
  {:nombre "lo irreversible no se pregunta"
   :archivo "src/nc/sara/lenguaje.clj"
   :buscar "(when (irreversible? estado op)"
@@ -196,6 +196,12 @@
   :archivo "src/nc/sara/lenguaje.clj"
   :buscar "(if-let [h (first (filter #(= herramienta (:nombre %)) hs))]"
   :poner "(if-let [h (or (first (filter #(= herramienta (:nombre %)) hs)) {:operacion :compras/aprobar})]"}
+ {:nombre "SARA se cae con un error de MARCO"
+  :archivo "src/nc/sara/lenguaje.clj"
+  :buscar "(if-let [tipo (:nc/error (ex-data ex))]
+           {:estado :error"
+  :poner "(if-let [tipo nil]
+           {:estado :error"}
  {:nombre "el adaptador del modelo conoce MARCO"
   :archivo "src/nc/sara/claude.clj"
   :buscar "(:import (com.anthropic.client AnthropicClient)"

@@ -20,3 +20,10 @@ Procedimiento que funcionó el 2026-11-19 con Claude Code y un subagente `genera
 3. Restaurar el canon original. Guardar las dos versiones, la del agente y la corregida, junto con la descripción que recibió: `docs/e25/`.
 
 Una diferencia de forma (el agente escribió `[:monto 0 :CLP]` y la prueba esperaba `0`) no es una corrección del agente si su forma es la que pide la notación. En ese caso se corrige la prueba.
+
+## Segunda ronda (2026-11-19, Opus, Sonnet y Haiku 5.5)
+
+- **Sin tocar el canon del repositorio.** Para que la suite juzgue el canon de un agente basta ponerlo delante en el classpath: `deps -Sdeps '{:aliases {:e25 {:extra-paths ["<carpeta>/cp"]}}}' -M:e25:test`, con el archivo en `<carpeta>/cp/canon/ventas.edn`. `io/resource` devuelve el primero; `-Spath` confirma el orden. Así se pueden juzgar varios agentes uno tras otro, y el repositorio no queda con un canon ajeno si algo se corta. *Verificado* leyendo `(io/resource "canon/ventas.edn")` con el alias.
+- **No lanzar el subagente con `isolation: "worktree"`.** Le pone el repositorio como carpeta de trabajo: lo contrario de lo que se busca. Error nuestro en la primera de las tres corridas; el agente informó solo sus tres lecturas.
+- Con el subagente `general-purpose` y `model` (`opus`, `sonnet`, `haiku`) se cambia el modelo sin cambiar el encargo.
+

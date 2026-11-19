@@ -191,3 +191,28 @@
       (is (= [:entrada/orden :entrada/solicitud]
              (:pide (first (filter #(= :caso (:id %)) (:requisitos r))))))
       (is (= [] (bit/verificar m/*alm* (:empresa a)))))))
+
+(deftest un-error-de-marco-se-dice-no-cae
+  (testing "Claude pidió despachar de una bodega sin recepciones: el contrato no logra
+  el costo unitario y MARCO lanza un error de datos. SARA se caía; ahora dice el
+  error a la persona, y la decisión queda en la bitácora (D105)."
+    (let [b (m/empresa! m/empresa-b)
+          _ (m/ejecutar! b :persona/ana :ventas/alta-cliente {:id :cliente/ferreteria :nombre "Ferretería" :cupo [:monto 10000000 :CLP]})
+          _ (m/ejecutar! b :persona/ana :ventas/registrar-pedido
+                         {:cliente :cliente/ferreteria :producto :P-100 :cantidad [:cantidad 1 :un]
+                          :precio-unitario [:monto 50000 :CLP]})
+          [modelo] (guion {"despacha el pedido"
+                           (fn [hs] (llamada "ventas__despachar"
+                                             {:entrega (first (opciones hs "ventas__despachar" "entrega"))
+                                              :producto ":P-100" :bodega ":bodega/central" :cantidad "1 un"}))})
+          c (sl/turno! b :persona/ana modelo (sl/conversacion) "despacha el pedido")]
+      (is (= :error (get-in c [:respuesta :estado])))
+      (is (re-find #"no pudo.*costo-unitario" (get-in c [:respuesta :texto])))
+      (is (= :ventas/despachar (get-in c [:pendiente :operacion])) "lo pedido queda pendiente, por si la persona corrige")
+      (is (empty? (hechos b :ventas/despacho)))
+      (is (= [[:persona/ana :error]]
+             (mapv (juxt :decision/actor :decision/resultado)
+                   (filter #(= :ventas/despachar (:decision/operacion %)) (de-sara b)))))
+      (testing "confirmar tampoco se cae"
+        (is (= :nada-que-confirmar (get-in (sl/confirmar! b :persona/ana c) [:respuesta :estado]))))
+      (is (= [] (bit/verificar m/*alm* (:empresa b)))))))

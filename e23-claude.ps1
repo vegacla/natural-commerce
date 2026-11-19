@@ -1,4 +1,5 @@
-# E23 con Claude de verdad (nc.lenguaje-claude-test). Cuesta dinero: cinco llamadas.
+# E23 con Claude de verdad (nc.lenguaje-claude-test). Cuesta dinero: una conversación de
+# cinco frases y una muestra de 34 frases por vuelta ($env:NC_E23_VUELTAS, por omisión 1).
 # Uso:  .\e23-claude.ps1
 # Toma la clave de ANTHROPIC_API_KEY en el archivo .env del proyecto (ignorado por
 # git); si no está, la pide sin mostrarla. Vive solo en este proceso mientras corre.

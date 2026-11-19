@@ -6,7 +6,7 @@ Idioma del proyecto: español (documentos, nombres de dominio, conversación).
 
 ## Estado
 
-El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Prototipo ampliado aprobado (D81, `docs/prototipo-ampliado.md`): etapas 7 a 14, E10 a E27, todas hechas (bitácora, plan, maestros, las ocho formas de política, los diez verbos, el tiempo como actor, lo legal, el asiento, la sustitución de implementaciones, la composición en profundidad, SARA con un modelo de lenguaje, volumen y cobertura de las 74 operaciones, y contratos escritos por un agente sin contexto: E25, con la descripción que recibió y su resultado en `docs/e25/`). Revisión de madurez operativa de XTDB hecha (`docs/revision-xtdb.md`): se sigue con Clojure y XTDB, con tres condiciones antes de datos de clientes (D79; la cuarta se descartó, D80).
+El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Prototipo ampliado aprobado (D81, `docs/prototipo-ampliado.md`): etapas 7 a 14, E10 a E27, todas hechas (bitácora, plan, maestros, las ocho formas de política, los diez verbos, el tiempo como actor, lo legal, el asiento, la sustitución de implementaciones, la composición en profundidad, SARA con un modelo de lenguaje, volumen y cobertura de las 74 operaciones, y contratos escritos por un agente sin contexto: E25, con la descripción que recibió y su resultado en `docs/e25/`; repetido con la notación corregida y tres modelos en `docs/e25/ronda-2/`). Revisión de madurez operativa de XTDB hecha (`docs/revision-xtdb.md`): se sigue con Clojure y XTDB, con tres condiciones antes de datos de clientes (D79; la cuarta se descartó, D80).
 
 ## Documentos (leer en este orden)
 
@@ -38,7 +38,7 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 - El CLI de Clojure es `deps` (deps.clj, en `~/.local/bin`).
 - XTDB v2 exige JDK 21 o superior. El proyecto lo usa mediante `JAVA_CMD`, con el JDK 21 instalado aparte en `~/AppData/Local/Programs/Temurin21/jdk-21.0.13+9` (detalle en `docs/knowledge/entorno-jdk.md`).
 - SARA mínima: `.\sara.ps1` en PowerShell y abrir http://localhost:8081. Carga los datos de ejemplo en memoria; se pierden al detenerla.
-- E23 con Claude de verdad: `.\e23-claude.ps1` toma la clave de `.env` (ignorado por git; no leerlo) o la pide, y corre `nc.lenguaje-claude-test` (cinco llamadas a Claude Haiku 5.5, cuesta dinero); sin `ANTHROPIC_API_KEY` la prueba se omite.
+- E23 con Claude de verdad: `.\e23-claude.ps1` toma la clave de `.env` (ignorado por git; no leerlo) o la pide, y corre `nc.lenguaje-claude-test` (una conversación de cinco frases y una muestra de 34 por vuelta, con `$env:NC_E23_VUELTAS`; llamadas a Claude Haiku 5.5, cuesta dinero); sin `ANTHROPIC_API_KEY` la prueba se omite.
 - E26 con un año completo: `$env:NC_VOLUMEN='1'; .\pruebas.ps1 -n nc.volumen-test` (unos 4 minutos); sin la variable corre con tres días.
 - Pruebas: `.\pruebas.ps1` en PowerShell, desde cualquier carpeta; fija `JAVA_CMD` solo mientras corre. En bash: `JAVA_CMD="C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe" deps -M:test`.
 
@@ -50,7 +50,7 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 
 ## Forma de trabajo
 
-- Separación por empresa (D80): solo `src/nc/almacen.clj` toca XTDB; toda función pública del almacén recibe la empresa y la valida; ningún código recibe una empresa de afuera sin pasarla por la vista de empresa (`estado.clj`). Al agregar una función pública al almacén, declararla en `test/nc/resguardos_test.clj`. `deps -M:mutaciones` (con `JAVA_CMD`) rompe cada resguardo de `scripts/mutaciones.edn` y comprueba que alguna prueba falle, en una sola JVM (unos 100 s). Al agregar un resguardo, agregar su mutación.
+- Separación por empresa (D80): solo `src/nc/almacen.clj` toca XTDB; toda función pública del almacén recibe la empresa y la valida; ningún código recibe una empresa de afuera sin pasarla por la vista de empresa (`estado.clj`). Al agregar una función pública al almacén, declararla en `test/nc/resguardos_test.clj`. `deps -M:mutaciones` (con `JAVA_CMD`) rompe cada resguardo de `scripts/mutaciones.edn` y comprueba que alguna prueba falle, en una sola JVM (unos 100 s; la primera corrida, sin `target/mutaciones-detectoras.edn`, tarda varios minutos). Al agregar un resguardo, agregar su mutación.
 - El conocimiento que se obtiene al implementar (cómo se comporta una herramienta, un procedimiento que funcionó, separando lo que es de la herramienta de lo que fue error nuestro) se escribe en `docs/knowledge/`, un archivo por tema, y se agrega a su índice.
 - Toda decisión nueva se agrega a `docs/registro-de-decisiones.md` con el número siguiente al último.
 - Lo tributario chileno no está verificado por un experto: construirlo desde fuentes oficiales del SII y marcarlo (D42).

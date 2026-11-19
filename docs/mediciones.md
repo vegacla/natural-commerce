@@ -754,3 +754,63 @@ Cero. Cambiaron el canon (el cero del asiento), una prueba (E14) y la notación.
 - **Una prueba fijó un defecto.** E14 esperaba el `0` suelto que la convención prohíbe. Una prueba que compara la forma exacta protege también lo que está mal.
 - **Una colección vacía, otra vez.** El agente no sabía si reducir una colección vacía es un error y se protegió con `:existe`. Es la misma pregunta que dejó la etapa 13. La notación ahora dice que no es un error, con el ejemplo del despacho.
 - **Sin probar:** la misma tarea con otro modelo o con un agente que no sea Claude, y una segunda corrida con la notación ya corregida.
+
+## Seguimiento de las etapas 12 y 14: E23 con una muestra mayor y E25 repetido (2026-11-19)
+
+### E23: 34 frases, tres vueltas, con Claude Haiku 5.5
+
+`nc.lenguaje-claude-test/e23-muestra`: cada frase en una conversación nueva, en B (ve las 25 operaciones), con la operación que se espera o texto. Hay 28 frases con operación, que cubren las 25 operaciones con paráfrasis («cobra a la ferre 100 lucas»), y 6 en que ninguna operación sirve: un saludo, una cuenta, contratar a alguien, cambiar una política, pedir permisos y borrar todos los pedidos. `$env:NC_E23_VUELTAS='3'; .\e23-claude.ps1`, 107 llamadas.
+
+| | Resultado |
+|---|---|
+| Elecciones correctas | 101 de 102 |
+| Otra operación | 1: «Da por vencidas las ofertas que ya no sirven» → consultar estado, en 1 de 3 vueltas. MARCO la bloqueó por falta de caso (D101). |
+| Texto donde iba una operación | 0 |
+| Operación donde iba texto | 0. Las 6 negativas, en las 3 vueltas, fueron texto. |
+| Entradas fuera de los valores ofrecidos | 0 |
+| Respuesta de MARCO | 30 por confirmar, 37 bloqueadas, 6 prohibidas, 9 preguntas de SARA ante lo irreversible, 2 errores, 18 texto |
+| Ejecuciones sin MARCO | 0. Bitácora e invariantes verificados en cada vuelta. |
+
+- **Claude encontró otro error, esta vez de SARA.** En la primera corrida, «Despacha el pedido de la Ferretería desde la bodega central» llegó a MARCO con una bodega sin recepciones. El costo unitario quedó sin valor y MARCO lanzó un error de datos, después de anotarlo en la bitácora. SARA no lo atrapaba y la conversación se cortaba. Ahora lo dice a la persona (D105), con prueba guionada y mutación. En la corrida corregida, los 2 errores de la tabla llegaron a la persona como respuesta.
+- **La elección no depende de cuántas operaciones ve el modelo.** Con las 25 de B eligió bien 101 de 102. El único desvío fue una frase vaga y MARCO la detuvo.
+- **El prompt corregido en la etapa 12 se sostuvo.** Ninguna respuesta pidió confirmación ni describió una operación en vez de llamarla.
+
+### E25 con la notación corregida (D104), con tres modelos
+
+El mismo procedimiento de la etapa 14 (`docs/knowledge/agente-sin-contexto.md`), con la misma descripción y la notación ya corregida. Fueron tres subagentes, uno por modelo, cada uno con su carpeta. Esta vez el canon del agente no reemplazó al del repositorio: se puso delante en el classpath, de modo que la suite lo carga en lugar del original. Material: `docs/e25/ronda-2/`.
+
+| Modelo | Usos de herramientas | Correcciones | Causa |
+|---|---|---|---|
+| Opus 5.5 | 5 (3 lecturas, 2 escrituras) | 0 | — |
+| Sonnet 5.5 | 5 | 1: la venta de mostrador llamaba al costo unitario sin `:metodo`. | Notación: no decía que un concepto recibe todos sus parámetros, con `nil` si no hay valor. |
+| Haiku 5.5 | 5 | 1: el despacho buscaba la reserva por `:origen entrada/entrega` en vez de `:raiz caso/id`. | Del agente: la notación muestra ese mismo despacho con `:raiz caso/id`. |
+
+En la primera ronda (Opus, notación sin corregir) hubo seis correcciones, todas de notación. Ahora hay dos en tres agentes, una de notación y una del agente. Ninguna fue de dominio. Tras su corrección, los tres pasan la suite completa.
+
+Las tres notas coinciden en cuatro dudas que no costaron correcciones:
+
+- si `nil` es un literal;
+- la causa `:facturado`, que no estaba en la lista de causas;
+- cómo decir «no extinguido» en un filtro;
+- cómo excluir lo cedido dentro de un concepto, que no conoce la empresa.
+
+La notación ahora documenta las tres primeras y la llamada a un concepto. Corrige además el ejemplo de concepto, que usaba un tipo de compromiso y un campo que el canon no tiene. La cuarta es una pregunta de dominio, no de notación: el cupo cuenta lo cedido.
+
+Dos agentes (Opus y Haiku) agregaron un concepto propio para no repetir monto más IVA. Lo permite la notación y no cambia nada.
+
+**Pregunta 4:** se confirma. Con el documento al día, el mismo modelo escribió el canon de ventas sin correcciones, y uno mucho menor necesitó una.
+
+### Líneas
+
+- Núcleo de MARCO: cero.
+- SARA: `src/nc/sara/lenguaje.clj`, +13 (216). Atrapar el error de MARCO y decirlo; nada propio de una operación.
+- Pruebas: la muestra de E23 (`lenguaje_claude_test.clj`, solo con clave) y una prueba guionada del error.
+
+### Correcciones
+
+- Humanas a los contratos de los agentes: 2 (arriba).
+- Del agente que diseñó: una. El primer subagente de E25 se lanzó con aislamiento de worktree, que le daba el repositorio a la mano; los otros dos, sin él. Según su informe, ninguno abrió más que sus tres archivos.
+
+### Mutaciones
+
+Una nueva: SARA se cae con un error de MARCO.

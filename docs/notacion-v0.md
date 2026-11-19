@@ -109,6 +109,7 @@ Algo pendiente entre partes. Se guarda (D29).
  :compromiso/raiz     #uuid "..."              ; primer compromiso de la cadena
  :compromiso/reglas   {:empresa-b/compra-formal 3}   ; versiones con que se abrió (D48)
  :compromiso/extincion nil}                    ; {:causa :cumplimiento | :cierre | :castigo | :cesion | :vencimiento, :hecho #uuid}
+                                               ; o la causa que nombre el contrato: [:extingue-compromiso x :facturado]
 ```
 
 - **Latente** es el compromiso condicional (H2): una oferta que obliga solo si se acepta, o la obligación de pagar que nace con la orden pero se activa con la factura. Lo activa, con `:modifica-compromiso`, la operación que registra el hecho esperado (sección 5.1, D56); ningún compromiso cambia de estado sin una operación.
@@ -177,7 +178,7 @@ Uno solo para condiciones, conceptos y valores fijados por política (D25). Los 
 
 En un contrato están todas estas referencias. En un concepto, solo sus parámetros y `cada`: un concepto no conoce la empresa, porque ya se evalúa dentro de una. `impl/x` es el resultado del puerto que nombra `:op/impl` (sección 5).
 
-Un símbolo sin barra (`entrada`, `cada`) es el documento completo. Un dato ausente es un dato que falta (P4); uno presente sin valor, como una entrada opcional no entregada, vale nada y no falta.
+Un símbolo sin barra (`entrada`, `cada`) es el documento completo. Un dato ausente es un dato que falta (P4); uno presente sin valor, como una entrada opcional no entregada, vale nada y no falta. `nil` es un literal válido en cualquier expresión, y en una condición (`:si`, `:y`, `:cuando`) vale como falso.
 
 Para navegar entre entidades: `[:-> entrada/producto :producto/categoria]`.
 
@@ -223,10 +224,12 @@ Un concepto es una expresión con nombre, versionada (D38).
  :concepto/version 2
  :concepto/rige-desde #inst "2026-11-01"
  :concepto/tipo    :monto
- :concepto/params  {:cliente :cliente}
- :concepto/forma   [:- [:-> cliente :cliente/cupo-asignado]
-                       [:suma [:-> cada :compromiso/saldo :monto]
-                         [:compromisos {:tipo :ventas/cobro :deudor cliente :estado :activo}]]]}
+ :concepto/params  {:cliente :ref}
+ :concepto/forma   [:- [:-> cliente :cliente/cupo]
+                       [:suma [:si [:= [:-> cada :compromiso/estado] :extinguido]   ; el filtro solo compara por igualdad:
+                                   0                                                 ; "no extinguido" se escribe así
+                                   [:-> cada :compromiso/saldo :monto]]
+                              [:compromisos {:tipo :ventas/por-cobrar :deudor cliente}]]]}
 
 ;; concepto algorítmico: cálculo en código, valor guardado como evidencia
 {:concepto/id      :inventario/costo-fifo
@@ -236,6 +239,8 @@ Un concepto es una expresión con nombre, versionada (D38).
  :concepto/calculo nc.inventario/costo-fifo
  :concepto/evidencia :guardar}
 ```
+
+Quien llama a un concepto le pasa todos sus parámetros, ni más ni menos; el que no tiene valor va como `nil`: `[:inventario/costo-unitario {:producto entrada/producto :bodega entrada/bodega :cantidad entrada/cantidad :metodo nil}]`. El catálogo rechaza una llamada con otros parámetros.
 
 Una capacidad publica sus conceptos. El catálogo de cada empresa reúne los del canon, los de sus campos propios y los de sus capacidades contratadas.
 

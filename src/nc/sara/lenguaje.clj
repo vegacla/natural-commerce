@@ -137,14 +137,27 @@
                             (assoc base :texto (str titulo " está lista. ¿Confirmas?")))
       :consultado    (decir (dissoc conv :pendiente)
                             (assoc base :salidas (:salidas res) :texto (str titulo ": consultado.")))
+      :error         (decir (assoc conv :pendiente (assoc propuesta :elegidas (:elegidas propuesta #{})))
+                            (assoc base :texto (str titulo ": MARCO no pudo prepararla. " (:mensaje res))))
       (decir (assoc conv :pendiente (assoc propuesta :elegidas (:elegidas propuesta #{})))
              (assoc base :texto (str titulo (if (= :prohibido (:estado res)) ": no se puede. " ": todavía no. ")
                                      (texto-de estado actor operacion res)))))))
 
+(defn- marco!
+  "Llama a MARCO. Un error del contrato al prepararla (datos que el contrato no
+  logra armar) MARCO lo anota en la bitácora y lo lanza; SARA lo devuelve como
+  respuesta, para decirlo a la persona sin caerse (D105)."
+  [estado actor operacion entradas opts]
+  (try (ej/ejecutar! estado actor operacion entradas opts)
+       (catch clojure.lang.ExceptionInfo ex
+         (if-let [tipo (:nc/error (ex-data ex))]
+           {:estado :error :error tipo :mensaje (ex-message ex)}
+           (throw ex)))))
+
 (defn- a-marco!
   "Pasa la propuesta a MARCO, sin confirmación y con origen :sara."
   [estado actor conv {:keys [operacion entradas] :as propuesta}]
-  (responder estado actor conv propuesta (ej/ejecutar! estado actor operacion entradas {:origen :sara})))
+  (responder estado actor conv propuesta (marco! estado actor operacion entradas {:origen :sara})))
 
 (defn- preguntar [conv propuesta [{:keys [campo opciones]}]]
   (decir (assoc conv :pendiente propuesta)
@@ -195,7 +208,7 @@
   (let [{:keys [operacion entradas] :as p} (:pendiente conv)]
     (if-not (and p (= :por-confirmar (get-in conv [:respuesta :estado])))
       (decir conv {:estado :nada-que-confirmar :texto "No hay nada por confirmar."})
-      (let [res (ej/ejecutar! estado actor operacion entradas {:origen :sara :confirmado true})]
+      (let [res (marco! estado actor operacion entradas {:origen :sara :confirmado true})]
         (if (= :ejecutado (:estado res))
           (decir (dissoc conv :pendiente)
                  {:estado :ejecutado :operacion operacion :entradas entradas :decision (:decision res)
