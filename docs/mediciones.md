@@ -504,3 +504,47 @@ Cinco nuevas (el asiento no mueve las cuentas, la versión de la implementación
 - **Dónde va un efecto decide qué revierte.** El asiento va dentro de la factura, así que la nota de crédito lo revierte; el folio va en un hecho aparte, así que no vuelve (D94). Fue una decisión de modelado, no de código.
 - **Sustituir es cambiar un dato.** El contrato nombra un puerto; el registro, la función. Los hechos anteriores conservan su valor y su versión (D48).
 - **Sin probar:** un envío real al SII (necesita salida diferida), libros y declaraciones, retenciones, notas de débito, y que el balance cuadre con varias monedas.
+
+## Etapa 11: composición en profundidad (2026-11-19)
+
+Escenario E20, más un objetivo de estado deseado y necesidades de muchas a muchas.
+
+### Líneas del núcleo
+
+| Archivo | Qué cambió | Líneas |
+|---|---|---|
+| `src/nc/planificador.clj` | Deducción en profundidad, nueva deducción en cada avance, fusión con lo ya hecho, estado deseado (D97, D98) | +132 |
+| `src/nc/resolvedor.clj` | Límite con cobertura y parcial; colecciones de referencias en las entradas (D97, D99) | +29 |
+| `src/nc/estado.clj` | Qué operación produce una entrada y cuáles cumplen un compromiso | +30 |
+| `src/nc/esquema.clj`, `validar.clj`, `ejecutor.clj` | `:cubre-con` en "limita"; tipo colección; reducir una colección de identificadores | +14 |
+| **Total del núcleo de MARCO** | | **2.636** (antes 2.431) |
+
+SARA: +5 líneas (decir con qué se cubre lo que falta; leer y escribir una colección de referencias).
+
+Pruebas: 2.575 líneas; 5 pruebas nuevas. Las 75 pruebas, con 667 comprobaciones, pasan.
+
+### Líneas por operación
+
+Ninguna operación nueva. Emitir orden cambió 6 líneas de contrato y 1 de tipo de hecho (reduce en vez de extinguir; `:solicitudes`). Inventario ganó un concepto (existencia libre, 10 líneas). Lo que hace que B abastezca, reciba y reserve antes de despachar son dos políticas "limita" con cobertura, en datos.
+
+### Rodeos al almacén
+
+Ninguno.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente: ninguna en el núcleo detectada por las pruebas; E20 y E8 pasaron en la primera corrida. Dos pruebas anteriores cambiaron por diseño: E1 enumera los opcionales de la orden (ahora `:solicitudes`) y el formulario de SARA no conocía el tipo colección. En la prueba nueva, faltaba `:politica/rige-desde` en las políticas que se validan.
+
+### Mutaciones
+
+Nueve nuevas (un límite con cobertura prohíbe, deducir a un solo nivel, el parcial no divide, una entrada producida se repite, el plan no se vuelve a deducir, lo que otro cumplió no queda satisfecho, la productora ignora el tipo, la orden extingue la necesidad entera, una colección de referencias no se revisa). Las 43 son detectadas.
+
+### Hallazgos de la etapa
+
+- **Deducir en profundidad no necesitó una forma nueva, pero sí que "limita" dijera con qué se cubre.** Exige ya decía con qué operación se cumple (`:via`); un límite solo prohibía. Con `:cubre-con`, la falta de existencia se vuelve un paso (recibir) y no un rechazo. Es la empresa la que decide cómo se cubre (D46): B recibe lo que compra; otra empresa podría trasladar de otra bodega.
+- **Lo que hay que hacer depende de lo que se hizo.** Antes del pedido no hay caso, y sin caso no se sabe cuánto está reservado. El plan inicial muestra solo vender y despachar; al registrar el pedido aparecen la reserva, la compra formal y la recepción. Volver a deducir con el estado real reemplazó a simular efectos, y el plan se presenta estable: lo ejecutado queda, lo que otro hizo queda satisfecho, lo nuevo entra en su lugar (D97).
+- **Tres dominios en una cadena de cinco niveles**: despachar (ventas) → reservar (inventario) → recibir → emitir orden (compras) → solicitud, ofertas y aprobación. Ninguna operación sabe de las otras; las une el resolvedor por sus requisitos, sus entradas y sus salidas (D10).
+- **El estado deseado se lee de los efectos.** Qué operación cumple la entrega de un pedido sale de su contrato (reduce una entrada de ese tipo); no hubo que escribirlo aparte (D98).
+- **Quién recibe evitó un error de modelo.** Sin la política que reserva la recepción a la bodega, Ana habría "recibido" mercadería por avanzar el plan. Una operación que registra un hecho del mundo (recibir, una oferta) solo debe ejecutarla quien lo presenció; hoy eso lo asegura una política de permiso, no el modelo.
+- **Sin probar:** alternativas reales para un estado deseado (hoy solo despachar cumple una entrega), cubrir una falta con dos órdenes dentro de un plan, y un camino guardado de un plan profundo, que hoy se guarda como lista plana de operaciones sin las entradas de cada paso.

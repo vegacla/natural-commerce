@@ -61,7 +61,7 @@
                                [(val/tipo-normal tipo) (numero n) (keyword u)]
                                t)
           :fecha    (Date/from (.toInstant (.atStartOfDay (LocalDate/parse t) ZoneOffset/UTC)))
-          :ref      (edn/read-string t)
+          (:ref :coleccion) (edn/read-string t)
           :clave    (keyword (str/replace t #"^:" ""))
           :booleano (= "true" t)
           t)
@@ -73,7 +73,7 @@
   (cond
     (nil? x)                        ""
     (string? x)                     x
-    (#{:ref :clave} (val/tipo-normal tipo)) (pr-str x)
+    (#{:ref :clave :coleccion} (val/tipo-normal tipo)) (pr-str x)
     (v/valor? x)                    (str (v/numero x) " " (name (v/unidad x)))
     :else                           (mostrar x)))
 
@@ -125,8 +125,13 @@
 (defn- aviso
   "Un requisito que no es una entrada, dicho para personas. Nil si no hay nada
   que decir."
-  [vista {:keys [id estado via faltan razon pide no-puede] :as req}]
-  (case estado
+  [vista {:keys [id estado via faltan faltante razon pide no-puede] :as req}]
+  (case (if (and (= :pendiente estado) faltante) :por-cubrir estado)
+    :por-cubrir    {:nivel :pendiente
+                    :texto (str "Faltan " (mostrar faltante) " según " (mostrar id) ". Se cubre con «" (titulo via)
+                                "»; puede hacerlo " (quien (:quien req))
+                                (when no-puede (str ", pero no " (nombre vista no-puede))) ".")
+                    :via via}
     :prohibido     {:nivel :prohibido
                     :texto (if (= :permiso id)
                              (str "Sin permiso para esta operación; puede hacerlo " (quien (:quien req)) ".")

@@ -22,6 +22,19 @@
    :concepto/calculo   nc.calculos/costo-unitario
    :concepto/evidencia :guardar}
 
+  ;; Lo que hay en la bodega y nadie reservó: lo que se puede reservar para
+  ;; despachar sin esperar una recepción (E20).
+  {:concepto/id      :inventario/libre
+   :concepto/version 1
+   :concepto/tipo    :cantidad
+   :concepto/params  {:producto :ref :bodega :ref}
+   :concepto/forma   [:- [:saldo :inventario/existencia {:producto producto :bodega bodega} :cantidad]
+                         [:suma [:si [:y [:= [:-> cada :compromiso/objeto :producto] producto]
+                                         [:= [:-> cada :compromiso/objeto :bodega] bodega]]
+                                     [:-> cada :compromiso/saldo :cantidad]
+                                     0]
+                                [:compromisos {:tipo :inventario/reservado :estado :activo}]]]}
+
   ;; Existencia de la bodega, menos lo reservado, más lo que viene en camino.
   {:concepto/id      :inventario/disponible
    :concepto/version 1

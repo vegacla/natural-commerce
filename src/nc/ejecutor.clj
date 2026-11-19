@@ -117,7 +117,8 @@
   no extinguidos de una colección (T9). Un compromiso extinguido no cambia (D65)."
   [app x]
   (if (sequential? x)
-    (remove extinguido? x)
+    ;; Una colección de compromisos, o de sus identificadores (una entrada).
+    (remove extinguido? (map #(if (map? %) % (est/leer (:estado app) (pendientes app) %)) x))
     (let [c (est/leer (:estado app) (pendientes app) x)]
       (cond
         (not (contains? c :compromiso/id)) (e/error! :no-es-compromiso (str (pr-str x) " no es un compromiso") {:id x})

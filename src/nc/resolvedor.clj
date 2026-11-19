@@ -40,16 +40,26 @@
       (contains? (get-in estado [:catalogo :tipos-hecho]) tipo) (= tipo (:hecho/tipo doc))
       :else                                            (= tipo (:entidad/tipo doc)))))
 
-(defn- problema-de-entrada [estado forma valor]
+(defn- problema-de-referencia [estado forma valor]
+  (cond
+    (not (existe? estado (second forma) valor))
+    (str "No existe " (pr-str valor) " como " (second forma))
+
+    (false? (:entidad/activa (est/leer estado valor)))
+    (str (pr-str valor) " está desactivado")))
+
+(defn- ref? [forma] (and (vector? forma) (= :ref (first forma))))
+
+(defn- problema-de-entrada
+  "Lo que no calza de una entrada con su tipo. Una colección de referencias
+  ([:vector [:ref tipo]]) se revisa elemento por elemento."
+  [estado forma valor]
   (if-let [error (m/explain (esq/esquema-de-datos forma) valor)]
     (str/join "; " (flatten [(me/humanize error)]))
-    (when (and (vector? forma) (= :ref (first forma)))
-      (cond
-        (not (existe? estado (second forma) valor))
-        (str "No existe " (pr-str valor) " como " (second forma))
-
-        (false? (:entidad/activa (est/leer estado valor)))
-        (str (pr-str valor) " está desactivado")))))
+    (cond
+      (ref? forma) (problema-de-referencia estado forma valor)
+      (and (vector? forma) (= :vector (first forma)) (ref? (second forma)))
+      (some #(problema-de-referencia estado (second forma) %) valor))))
 
 (defn- revisar-entradas
   "Separa las entradas válidas de los requisitos que deja el contrato: una
@@ -152,7 +162,7 @@
       (case (:politica/forma p)
         :prohibe [{:id (:politica/id p) :estado :prohibido :razon (get-in p [:politica/cuerpo :razon])}]
         :exige   (mapv #(requisito-exigido estado ctx contrato p %) (:politica/cuerpo p))
-        :limita  [(requisito-limite ctx p)]
+        :limita  [(requisito-limite estado ctx p)]
         :permite []))))
 
 (defn- eximida?
@@ -236,12 +246,33 @@
 
 ;; --- Limita (D34) -----------------------------------------------------------------
 
+(defn- cubierto
+  "Lo que excede un \"limita\" que dice con qué se cubre (`:cubre-con`, D97): un
+  requisito pendiente que se cumple con esa operación, por lo que falta
+  (`faltante`). Con `:parcial`, lo que cabe bajo el máximo puede ir antes: el
+  planificador divide el paso en la entrada que el límite mide."
+  [estado ctx p base faltante]
+  (let [{:keys [operacion entradas parcial]} (get-in p [:politica/cuerpo :cubre-con])
+        valor (get-in p [:politica/cuerpo :valor])
+        ctx   (assoc-in ctx [:refs 'faltante] faltante)
+        ents  (:valor (e/evaluar-seguro (or entradas {}) ctx))]
+    (merge base
+           {:faltante faltante :via operacion}
+           (if (est/habilitada? estado operacion)
+             (merge {:estado :pendiente :cubre {:operacion operacion :entradas ents}}
+                    (quien-puede estado ctx operacion))
+             {:estado :prohibido
+              :razon  (str (:politica/id p) " se cubre con " operacion ", que no está en el plan contratado")})
+           (when (and parcial (symbol? valor) (= "entrada" (namespace valor)))
+             {:parcial {:campo (keyword (name valor)) :cabe (:maximo base)}}))))
+
 (defn- requisito-limite
   "Un \"limita\": el valor no supera el máximo, o lo supera dentro de la
-  tolerancia. Más allá, lo que diga `:al-exceder-tolerancia` (por defecto, se
-  prohíbe). Si varias aplican, rige la más restrictiva: cada una se evalúa."
-  [ctx p]
-  (let [{:keys [valor maximo tolerancia]} (:politica/cuerpo p)
+  tolerancia. Más allá se prohíbe, salvo que la política diga con qué se cubre
+  lo que falta: entonces queda pendiente (D97). Si varias aplican, rige la más
+  restrictiva: cada una se evalúa."
+  [estado ctx p]
+  (let [{:keys [valor maximo tolerancia cubre-con]} (:politica/cuerpo p)
         x   (e/evaluar-seguro valor ctx)
         m   (e/evaluar-seguro maximo ctx)
         tol (when tolerancia (e/evaluar-seguro tolerancia ctx))
@@ -254,6 +285,7 @@
         (cond
           (not (pos? (v/comparar x m)))    (assoc base :estado :satisfecho)
           (not (pos? (v/comparar x tope))) (assoc base :estado :satisfecho :tolerado true :tope tope)
+          cubre-con                        (cubierto estado ctx p base (v/restar x m))
           :else (assoc base :estado :prohibido
                        :razon (str "Supera el límite de " id ": " (pr-str x) " sobre " (pr-str (if tol tope m)))))))))
 

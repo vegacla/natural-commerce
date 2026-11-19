@@ -81,7 +81,8 @@
       (let [res (r/resolver a :persona/ana :compras/emitir-orden orden-20)]
         (is (= :listo (:estado res)))
         (is (= #{{:id :entrada/solicitud :estado :opcional}
-                 {:id :entrada/oferta :estado :opcional}}
+                 {:id :entrada/oferta :estado :opcional}
+                 {:id :entrada/solicitudes :estado :opcional}}
                (set (:requisitos res))))))
     (testing "sin confirmación no se ejecuta (D53)"
       (is (= :por-confirmar

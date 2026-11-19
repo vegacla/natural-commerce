@@ -137,4 +137,41 @@
  {:nombre "redondear no admite fracciones"
   :archivo "src/nc/valor.clj"
   :buscar "(.divide (bigdec (numerator n)) (bigdec (denominator n)) 20 java.math.RoundingMode/HALF_UP)"
-  :poner "(bigdec n)"}]
+  :poner "(bigdec n)"}
+ ;; Etapa 11: composición en profundidad (D97, D98, D99).
+ {:nombre "un límite con cobertura prohíbe"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "cubre-con                        (cubierto estado ctx p base (v/restar x m))"
+  :poner "false nil"}
+ {:nombre "los pasos se deducen a un solo nivel"
+  :archivo "src/nc/planificador.clj"
+  :buscar "(let [sub  (fn [acc q] (deducir estado actor pool acc q (inc nivel)))"
+  :poner "(let [sub  (fn [acc q] (agregar estado acc (assoc q :res (resolver-paso estado actor pool q))))"}
+ {:nombre "el límite parcial no divide el paso"
+  :archivo "src/nc/planificador.clj"
+  :buscar "(if (and parcial (pos? (v/comparar cabe 0)))"
+  :poner "(if false"}
+ {:nombre "una entrada producida se vuelve a producir"
+  :archivo "src/nc/planificador.clj"
+  :buscar "(if (and prod (not ((:producidas acc) k)))"
+  :poner "(if prod"}
+ {:nombre "el plan no se vuelve a deducir al avanzar"
+  :archivo "src/nc/planificador.clj"
+  :buscar "plan (-> plan (update :pasos fusionar nuevos) (update :reglas merge reglas))"
+  :poner "plan (if (seq (:pasos plan)) plan (assoc plan :pasos nuevos))"}
+ {:nombre "lo que otro cumplió no queda satisfecho"
+  :archivo "src/nc/planificador.clj"
+  :buscar ":else [(conj acc [(-> p (assoc :estado :satisfecho) (dissoc :falta)) nil]) libres]"
+  :poner ":else [acc libres]"}
+ {:nombre "la productora ignora el tipo"
+  :archivo "src/nc/estado.clj"
+  :buscar ":when (and (contains? (:op/salidas c) k) (crea-tipo? c (second forma)) (habilitada? estado id))]"
+  :poner ":when (and (contains? (:op/salidas c) k) (habilitada? estado id))]"}
+ {:nombre "la orden extingue la necesidad entera"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "(let [nuevos (if (sequential? x) (repartir app cs cuanto) [(reducido app (first cs) cuanto)])]"
+  :poner "(let [nuevos (if (sequential? x) (repartir app cs cuanto) [(extinguir app (first cs) :cumplimiento)])]"}
+ {:nombre "una colección de referencias no se revisa"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(some #(problema-de-referencia estado (second forma) %) valor)"
+  :poner "nil"}]

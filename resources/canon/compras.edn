@@ -4,6 +4,7 @@
 ;; Registrar pago se agregó en la etapa 5 solo con su contrato (E6).
 ;; Etapa 9: la recepción valoriza la existencia (costo de la orden), y MARCO
 ;; extingue una oferta vencida (E18).
+;; Etapa 11: la orden reduce las necesidades que atiende, de muchas a muchas (E20).
 
 {:entidades
  [{:entidad/tipo   :producto
@@ -56,7 +57,8 @@
                         [:cantidad :cantidad]
                         [:precio-unitario :monto]
                         [:solicitud {:optional true} [:ref :compras/necesidad]]
-                        [:oferta {:optional true} [:ref :compras/oferta-vigente]]]
+                        [:oferta {:optional true} [:ref :compras/oferta-vigente]]
+                        [:solicitudes {:optional true} [:vector [:ref :compras/necesidad]]]]
    :tipo-hecho/regimen :solo-agregar}
 
   {:tipo-hecho/id      :compras/recepcion
@@ -149,12 +151,18 @@
                   [:cantidad :cantidad]
                   [:precio-unitario :monto]
                   [:solicitud {:optional true} [:ref :compras/necesidad]]
-                  [:oferta {:optional true} [:ref :compras/oferta-vigente]]]
+                  [:oferta {:optional true} [:ref :compras/oferta-vigente]]
+                  [:solicitudes {:optional true} [:vector [:ref :compras/necesidad]]]]
    :op/salidas   {:orden orden/id}
    :op/efectos
+   ;; La orden reduce la necesidad por lo que ordena: una necesidad se cubre con
+   ;; varias órdenes, y una orden atiende varias con `:solicitudes`, de la que
+   ;; vence antes a la que vence después (T9, D89, D99).
    [[:registra-hecho :compras/orden entrada :como orden]
-    [:cuando entrada/solicitud
-     [:extingue-compromiso entrada/solicitud :cumplimiento]]
+    [:cuando entrada/solicitudes
+     [:reduce-compromiso entrada/solicitudes {:cantidad entrada/cantidad}]]
+    [:cuando [:si entrada/solicitudes false entrada/solicitud]
+     [:reduce-compromiso entrada/solicitud {:cantidad entrada/cantidad}]]
     [:cuando entrada/oferta
      [:extingue-compromiso entrada/oferta :cumplimiento]]
     [:abre-compromiso {:tipo     :compras/recepcion-pendiente

@@ -128,7 +128,7 @@ Continúan la numeración de `prototipo-minimo.md`. La Empresa A es el comercio 
 8. **Formas que faltan.** Hecha (ver `mediciones.md`). Fija, sugiere, limita e inicia; conflictos (E12, E19, E21).
 9. **Verbos y tiempo.** Hecha (ver `mediciones.md`). Revertir, transferir y reducir varios; calendario; MARCO por iniciativa propia; período contable (E13, E15, E16, E17, E18).
 10. **Legal y contabilidad.** Hecha (ver `mediciones.md`). Política legal, folios, asiento y sustitución de implementaciones (E14, E22).
-11. **Composición en profundidad** (E20).
+11. **Composición en profundidad.** Hecha (ver `mediciones.md`). Deducción en profundidad, estado deseado y necesidades de muchas a muchas (E20; D97, D98, D99).
 12. **SARA con LLM y complejidad visible** (E23, E24).
 13. **Volumen y cobertura** (E26 y la sección 7).
 

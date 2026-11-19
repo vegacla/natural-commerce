@@ -36,6 +36,7 @@
     (tipos-simples t)                    t
     (#{:unidad :keyword} t)              :clave
     (and (vector? t) (= :ref (first t))) :ref
+    (and (vector? t) (#{:vector :set} (first t))) :coleccion
     (vector? t)                          (tipo-normal (first t))
     :else                                :cualquiera))
 

@@ -137,7 +137,13 @@
    :limita  [:map {:closed true}
              [:valor :any] [:maximo :any]
              [:tolerancia {:optional true} :any]
-             [:al-exceder-tolerancia {:optional true} :keyword]]
+             [:al-exceder-tolerancia {:optional true} :keyword]
+             ;; Con qué operación se cubre lo que excede el máximo (D97).
+             [:cubre-con {:optional true}
+              [:map {:closed true}
+               [:operacion :qualified-keyword]
+               [:entradas {:optional true} [:map-of :keyword :any]]
+               [:parcial {:optional true} :boolean]]]]
    :sugiere campo-y-valor
    :fija    campo-y-valor
    :exime   [:map {:closed true} [:hasta {:optional true} :any]]
@@ -269,7 +275,8 @@
   (case forma
     :exige   (for [r cuerpo :when (contains? r :donde)] [(:donde r) :booleano {'hecho :cualquiera}])
     :prohibe []
-    :limita  (for [k [:valor :maximo :tolerancia] :when (contains? cuerpo k)] [(k cuerpo) nil nil])
+    :limita  (concat (for [k [:valor :maximo :tolerancia] :when (contains? cuerpo k)] [(k cuerpo) nil nil])
+                     (for [x (vals (get-in cuerpo [:cubre-con :entradas]))] [x nil {'faltante :cualquiera}]))
     (:sugiere :fija) [[(:valor cuerpo) nil nil]]
     :exime   (when (contains? cuerpo :hasta) [[(:hasta cuerpo) :booleano nil]])
     :inicia  (concat (when (contains? cuerpo :despues) [[(:despues cuerpo) :duracion nil]])
@@ -302,6 +309,13 @@
            (when (and (= :inicia f) (not (contains? (:contratos catalogo) (:objetivo cuerpo))))
              [(problema :operacion-desconocida (:objetivo cuerpo)
                         (str "No existe la operación " (:objetivo cuerpo)))])
+           (when-let [op (and (= :limita f) (get-in cuerpo [:cubre-con :operacion]))]
+             (when-not (contains? (:contratos catalogo) op)
+               [(problema :operacion-desconocida op (str "No existe la operación " op))]))
+           (when (and (= :limita f) (get-in cuerpo [:cubre-con :parcial])
+                      (not (and (symbol? (:valor cuerpo)) (= "entrada" (namespace (:valor cuerpo))))))
+             [(problema :parcial-sin-entrada (:valor cuerpo)
+                        "Un límite parcial mide una entrada (entrada/x): es la que se divide")])
            (when (= :exige f)
              (for [{:keys [hecho]} cuerpo
                    :when (not (contains? (:tipos-hecho catalogo) hecho))]

@@ -202,11 +202,45 @@
 
 ;; --- Catálogo --------------------------------------------------------------------
 
+(defn- efectos-de [contrato] (filter vector? (tree-seq vector? seq (vec (:op/efectos contrato)))))
+
 (defn registradora
   "La operación que registra hechos de un tipo: con ella se cumple un \"exige\"."
   [catalogo tipo-hecho]
-  (some (fn [{:op/keys [id efectos]}]
-          (when (some #(and (vector? %) (= [:registra-hecho tipo-hecho] (take 2 %)))
-                      (tree-seq vector? seq (vec efectos)))
+  (some (fn [{:op/keys [id] :as c}]
+          (when (some #(= [:registra-hecho tipo-hecho] (take 2 %)) (efectos-de c))
             id))
         (vals (:contratos catalogo))))
+
+(defn- crea-tipo?
+  "Si el contrato registra un hecho o abre un compromiso del tipo."
+  [contrato tipo]
+  (some (fn [[verbo x]]
+          (or (and (= :registra-hecho verbo) (= tipo x))
+              (and (= :abre-compromiso verbo) (map? x) (= tipo (:tipo x)))))
+        (efectos-de contrato)))
+
+(defn productora
+  "La operación que entrega la entrada `k` de tipo `[:ref tipo]`: tiene una
+  salida con ese nombre y registra el hecho o abre el compromiso de ese tipo
+  (D10, D97). Nil si no hay, como para las entidades, que no se deducen. La
+  primera por nombre, entre las del plan de la empresa."
+  [estado k forma]
+  (when (and (vector? forma) (= :ref (first forma)))
+    (first (for [[id c] (sort-by key (get-in estado [:catalogo :contratos]))
+                 :when (and (contains? (:op/salidas c) k) (crea-tipo? c (second forma)) (habilitada? estado id))]
+             id))))
+
+(defn cumplidoras
+  "Las operaciones que reducen o extinguen un compromiso del tipo que reciben
+  como entrada: con ellas se alcanza el estado deseado de que se cumpla (D98).
+  Solo las del plan de la empresa, por nombre."
+  [estado tipo]
+  (vec (for [[id c] (sort-by key (get-in estado [:catalogo :contratos]))
+             :let [refs (into {} (for [[k {forma :tipo}] (esq/campos-ordenados (:op/entradas c))
+                                       :when (= [:ref tipo] forma)]
+                                   [(symbol "entrada" (name k)) k]))]
+             :when (and (seq refs) (habilitada? estado id)
+                        (some (fn [[verbo x]] (and (#{:reduce-compromiso :extingue-compromiso} verbo) (refs x)))
+                              (efectos-de c)))]
+         id)))
