@@ -689,3 +689,68 @@ Una nueva (leer filtra por el identificador de dominio). La 28 (un saldo se lee 
 - **La notación no tiene unidades compuestas.** «3 tornillos por repisa» se escribió como un entero; un precio por kilo o un rendimiento por hora pedirán lo mismo.
 - **Producción y personal no pidieron nada nuevo.** La orden de fabricación es tres compromisos internos (T2) que cada paso reduce; el contrato de trabajo es un compromiso con calendario, como el arriendo (T14). Fuera de alcance como dominios completos, pero expresables.
 - **Sin probar:** volumen en disco (no en memoria), más de dos empresas, y E25 (contratos escritos por un agente sin contexto de diseño), que ninguna etapa hizo.
+
+## Etapa 14: contratos de un agente sin contexto (E25, 2026-11-19)
+
+El agente fue un subagente de Claude Code (Opus 5.5) sin esta conversación. Recibió tres archivos, copiados a una carpeta fuera del repositorio:
+
+- `notacion-v0.md`, tal como estaba;
+- el canon de compras;
+- una descripción funcional de ventas (`docs/e25/descripcion-ventas.md`).
+
+La descripción dice qué hace cada operación y con qué nombres: operaciones, entradas, salidas, documentos y sus datos, y tipos de compromiso. Los nombres son fijos porque otras capacidades, las políticas y las pruebas los usan. No dice qué verbos usar, qué estados tienen los compromisos, cómo se mueven los saldos ni cómo se escribe el concepto.
+
+El aislamiento fue por instrucción: leer solo esos tres archivos, no abrir el repositorio y no ejecutar nada. Según su informe, lo cumplió: cinco usos de herramientas en total, tres lecturas y dos escrituras.
+
+Lo que escribió (`docs/e25/ventas-agente.edn`) se puso en lugar del canon de ventas y se corrió la suite completa. Las pruebas de ventas (E10 a E17, E20, E23) ya existían; se escribieron antes que los contratos.
+
+### Resultado
+
+| Ronda | Pruebas | Fallas y errores | Causa |
+|---|---|---|---|
+| 1 | 85 | 2 fallas, 19 errores | El catálogo rechazó la factura (tres problemas), y el alta del cliente falló en todas las pruebas que crean un cliente. |
+| 2 | 85 | 3 fallas, 1 error | El cupo disponible usaba `empresa` dentro de un concepto. Además, el cero del asiento tenía otra forma. |
+| 3 | 85 | 3 fallas | Solo la forma del cero: el agente escribió `[:monto 0 :CLP]` y la prueba esperaba `0`. |
+
+Seis correcciones humanas en tres de los nueve contratos, un tipo de hecho y el concepto. Seis contratos y seis tipos de hecho quedaron sin tocar. Versión corregida: `docs/e25/ventas-corregido.edn`.
+
+| # | Dónde | Corrección | Causa |
+|---|---|---|---|
+| 1 | `alta-cliente` | Campos con nombre completo (`:cliente/nombre`) y `:op/entidad :cliente`. | La notación nombraba los verbos de entidad pero no mostraba cómo se escriben, y no tenía `:op/entidad`. |
+| 2 | `modificar-cliente` | Lo mismo. | Lo mismo. |
+| 3 | tipo de hecho factura | `:por-cada` pasó a `:cada` en `:mueve`. | La notación no tenía `:cada` (D95). |
+| 4 | `emitir-factura` | El envío al SII pasó de una llamada de concepto a `:op/impl :tributario/envio-dte` con `impl/seguimiento`. | La notación mostraba `:op/impl` como una función, anterior a D96. |
+| 5 | `emitir-factura` y su tipo de hecho | El asiento pasó de un vector de líneas a un mapa de líneas. | La notación no decía que un vector literal no es una expresión. |
+| 6 | `cupo-disponible` | Se quitó `:acreedor empresa` del filtro. | La notación no decía qué referencias hay dentro de un concepto. |
+
+Las seis correcciones vienen de la notación. Las seis estaban entre las dudas que el agente anotó (`docs/e25/notas-agente.md`), y en la mayoría propuso la forma correcta o una alternativa razonable. Ninguna fue un error de dominio:
+
+- los estados de los compromisos, la causa `:facturado` y la reserva buscada por la raíz del caso son correctos;
+- también lo son la reversión que deshace el facturado y el asiento, el cobro que reduce varias facturas y el despacho que resta con un negativo.
+
+Su versión era igual o mejor que la del equipo en dos puntos:
+
+- escribió el cero del asiento con la moneda del neto (`[:* 0 entrada/monto]`), como pide la convención de la notación, mientras el canon usaba un `0` suelto;
+- protegió la reducción de la reserva con `[:existe …]`, por si una colección vacía daba error.
+
+El cero se adoptó en el canon y en E14.
+
+### Pregunta 4
+
+Se responde: los contratos del agente no exigieron corrección constante. Las seis correcciones salieron de un documento de notación desactualizado, no de la notación misma. No hubo que agregar a la notación ni un primitivo, ni un verbo, ni una construcción; solo faltaba documentar las que ya existían. `notacion-v0.md` ahora documenta las seis (D104). Repetir E25 con el documento corregido diría si ese era todo el problema.
+
+### Líneas del núcleo
+
+Cero. Cambiaron el canon (el cero del asiento), una prueba (E14) y la notación.
+
+### Correcciones
+
+- **Humanas, a los contratos del agente:** seis, detalladas arriba.
+- **Del agente que diseñó:** ninguna. La forma del cero no era un error de significado.
+
+### Hallazgos de la etapa
+
+- **El documento de la notación se desactualiza en silencio.** Cada decisión que agrega una construcción (D95, D96, `:op/entidad`) cambió el código y el canon, pero no `notacion-v0.md`. Nada lo detectaba: el equipo escribía contratos copiando el canon. Un agente sin contexto lo encontró en minutos.
+- **Una prueba fijó un defecto.** E14 esperaba el `0` suelto que la convención prohíbe. Una prueba que compara la forma exacta protege también lo que está mal.
+- **Una colección vacía, otra vez.** El agente no sabía si reducir una colección vacía es un error y se protegió con `:existe`. Es la misma pregunta que dejó la etapa 13. La notación ahora dice que no es un error, con el ejemplo del despacho.
+- **Sin probar:** la misma tarea con otro modelo o con un agente que no sea Claude, y una segunda corrida con la notación ya corregida.

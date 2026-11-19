@@ -83,9 +83,9 @@
       (testing "el asiento mueve las cuentas que fijó la empresa, y el balance cuadra"
         (let [cuentas (for [c [:cuenta/c1101 :cuenta/c4101 :cuenta/c2111]]
                         (saldo b :contabilidad/cuenta {:cuenta c}))]
-          (is (= [{:debe [:monto 595000 :CLP] :haber 0}
-                  {:debe 0 :haber [:monto 500000 :CLP]}
-                  {:debe 0 :haber [:monto 95000 :CLP]}]
+          (is (= [{:debe [:monto 595000 :CLP] :haber [:monto 0 :CLP]}
+                  {:debe [:monto 0 :CLP] :haber [:monto 500000 :CLP]}
+                  {:debe [:monto 0 :CLP] :haber [:monto 95000 :CLP]}]
                  cuentas))
           (is (= (reduce v/sumar 0 (map :debe cuentas)) (reduce v/sumar 0 (map :haber cuentas))))))
       (testing "la factura consumió un folio"
@@ -93,8 +93,8 @@
                (saldo b :tributario/folios {:documento :factura}))))
       (testing "la nota de crédito revierte el asiento con la factura; el folio usado no vuelve"
         (m/ejecutar! b :persona/ana :ventas/emitir-nota-credito {:factura (:factura salidas) :fecha (Date.)})
-        (is (= {:debe [:monto 0 :CLP] :haber 0} (saldo b :contabilidad/cuenta {:cuenta :cuenta/c1101})))
-        (is (= {:debe 0 :haber [:monto 0 :CLP]} (saldo b :contabilidad/cuenta {:cuenta :cuenta/c2111})))
+        (is (= {:debe [:monto 0 :CLP] :haber [:monto 0 :CLP]} (saldo b :contabilidad/cuenta {:cuenta :cuenta/c1101})))
+        (is (= {:debe [:monto 0 :CLP] :haber [:monto 0 :CLP]} (saldo b :contabilidad/cuenta {:cuenta :cuenta/c2111})))
         (is (= [:cantidad 1 :folio] (:emitidos (saldo b :tributario/folios {:documento :factura}))))
         (is (= :extinguido (:compromiso/estado (est/leer b (:cobro salidas))))))
       (is (= :ejecutado (:estado res))))

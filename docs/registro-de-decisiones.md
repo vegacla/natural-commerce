@@ -127,6 +127,7 @@ Documentos relacionados: `prototipo-minimo.md`, `prototipo-ampliado.md`, `analis
 | D101 | Una consulta cuyas salidas leen el caso (`caso/...`) no está lista sin caso: queda bloqueada y pide las entradas de referencia que lo darían. Una operación con efectos no lo necesita, porque sin caso el primer compromiso que abre es la raíz (D15). | Lo encontró Claude en E23: llamó a consultar el estado sin orden ni solicitud, el resolvedor la dio por lista y el ejecutor falló al leer `caso/id`. Sale de leer el contrato; ninguna consulta lo declara aparte. |
 | D102 | Toda lectura por identificador va por la llave primaria de XTDB (`:xt/id`), con la empresa en el filtro (D80). Una búsqueda por otra columna recorre la tabla con los datos de todas las empresas. | E26: leyendo por el identificador de dominio, la consulta de estado de una empresa pasó de 34 a 58 ms cuando otra empresa cargó un año (unos 20.000 hechos). Por la llave primaria no crece (13,5 ms) y la carga de un año bajó de 159 a 107 s. Lo protege un resguardo con su mutación. Las búsquedas por otros campos (los hechos de un caso, los compromisos de un origen) siguen recorriendo la tabla: es lo primero que mirar si el volumen crece en un orden de magnitud. |
 | D103 | La cobertura del análisis se mide con contratos, no con la clasificación: las operaciones de las 74 que el canon no tiene se escriben en `resources/cobertura/` y cada una se ejecuta una vez, con sus efectos comprobados. No son canon de la plataforma: no cambian lo que ve una empresa (E24). | La clasificación del CSV es analítica (D28 a D31) y puede equivocarse; un contrato que el catálogo valida y MARCO ejecuta no. Resultado: 74 de 74 sin primitivos, verbos ni formas nuevos (19 con contratos del canon, 47 con 57 contratos nuevos y 8 con una política o un concepto sobre otras operaciones). |
+| D104 | `notacion-v0.md` documenta toda construcción que el canon usa. Una decisión que agrega una construcción (una clave de `:mueve`, una forma de efecto, una referencia) la agrega también a la notación, con un ejemplo. Un cero de monto lleva la moneda (`[:* 0 entrada/monto]`), como cualquier monto. | E25: un agente sin contexto escribió el canon de ventas con seis correcciones humanas, y las seis venían de construcciones que la notación no documentaba (`:op/entidad`, la sintaxis de los verbos de entidad, `:cada` de D95, el puerto de D96, que un vector literal no es una expresión y qué referencias hay en un concepto). Ninguna fue de dominio. La pregunta 4 se responde: no se reabre la notación, se mantiene su documento. |
 
 ## 2. Criterios para elegir stack
 
@@ -163,7 +164,11 @@ Documentos relacionados: `prototipo-minimo.md`, `prototipo-ampliado.md`, `analis
 
 ## 5. Pendiente
 
+- Búsquedas por campos que no son `_id` (D102): los hechos de un caso, los compromisos de una raíz o de un origen y el hecho que revierte a otro todavía recorren la tabla con los datos de todas las empresas. Opciones, en este orden:
+  1. Medir E26 en disco con unas 50 empresas, por si los metadatos por página de los bloques de XTDB descartan las páginas de otras empresas.
+  2. Si crecen, agregar documentos índice propios en `almacen.clj`. El `_id` de cada uno se deriva de empresa, tabla, campo y valor, como el de los saldos, y guarda la lista de identificadores. `escribir!` los actualiza en la misma transacción. Cubrir solo esas cuatro búsquedas, con un resguardo que compare el índice con un recorrido completo, más su mutación.
+  3. Si eso no alcanza, cambiar al respaldo de D27 (Postgres), que trae índices compuestos por empresa.
 - Medir las elecciones del modelo de E23 con más frases que cinco (`.\e23-claude.ps1`).
-- E25: contratos escritos por un agente sin contexto de diseño (pregunta 4); no se hizo en ninguna etapa.
+- Repetir E25 con la notación corregida (D104), y con otro modelo.
 - Tres condiciones de D79 (log durable y replicado, almacén de objetos con respaldo ensayado, soporte), antes de datos de clientes. La cuarta se resolvió con D80.
 - Verificar con un experto el paquete legal chileno inicial (`resources/legal/cl.edn`, D93).

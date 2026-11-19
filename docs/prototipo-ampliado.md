@@ -130,7 +130,8 @@ Continúan la numeración de `prototipo-minimo.md`. La Empresa A es el comercio 
 10. **Legal y contabilidad.** Hecha (ver `mediciones.md`). Política legal, folios, asiento y sustitución de implementaciones (E14, E22).
 11. **Composición en profundidad.** Hecha (ver `mediciones.md`). Deducción en profundidad, estado deseado y necesidades de muchas a muchas (E20; D97, D98, D99).
 12. **SARA con LLM y complejidad visible.** Hecha (ver `mediciones.md`), con un modelo guionado y con Claude Haiku 5.5 (E23, E24; D100, D101).
-13. **Volumen y cobertura.** Hecha (ver `mediciones.md`). Un año de dos empresas sin que una se haga más lenta con los datos de la otra (E26, D102), y las 74 operaciones del análisis expresadas sin primitivos, verbos ni formas nuevos (sección 7, D103). E25 no se hizo en ninguna etapa.
+13. **Volumen y cobertura.** Hecha (ver `mediciones.md`). Un año de dos empresas sin que una se haga más lenta con los datos de la otra (E26, D102), y las 74 operaciones del análisis expresadas sin primitivos, verbos ni formas nuevos (sección 7, D103). E25 quedó para la etapa 14.
+14. **Contratos de un agente sin contexto.** Hecha (ver `mediciones.md`). Un agente con solo la notación, el canon de compras y una descripción funcional escribió el canon de ventas; seis correcciones humanas, todas por construcciones que la notación no documentaba (E25, D104).
 
 ## 7. Cobertura del análisis
 

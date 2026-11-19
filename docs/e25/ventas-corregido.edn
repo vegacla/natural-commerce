@@ -1,0 +1,322 @@
+;; Canon de la capacidad Ventas (E25), escrito desde notacion-v0.md,
+;; compras.edn y descripcion-ventas.md.
+;;
+;; Usa lo que declaran otras capacidades: entidades :producto y :bodega,
+;; saldos :inventario/existencia y :contabilidad/cuenta, compromiso
+;; :inventario/reservado, concepto :inventario/costo-unitario, tipo de hecho
+;; :tributario/folio-usado y puerto :tributario/envio-dte.
+;; Las dudas y supuestos están en notas.md.
+
+{:entidades
+ [{:entidad/tipo   :cliente
+   :entidad/campos {:cliente/nombre :texto
+                    :cliente/cupo   :monto}
+   :entidad/extensible true}]
+
+ :tipos-hecho
+ [{:tipo-hecho/id      :ventas/pedido
+   :tipo-hecho/datos   [:map
+                        [:cliente [:ref :cliente]]
+                        [:producto [:ref :producto]]
+                        [:cantidad :cantidad]
+                        [:precio-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  ;; Lo que sale de la bodega baja la existencia en unidades y en
+  ;; cantidad × costo unitario. La venta en mesón despacha sin entrega.
+  {:tipo-hecho/id      :ventas/despacho
+   :tipo-hecho/datos   [:map
+                        [:entrega {:optional true} [:ref :ventas/entrega-pendiente]]
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]
+                        [:costo-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/bodega}
+                         :suma  {:cantidad [:* -1 hecho/cantidad]
+                                 :costo    [:* -1 [:* hecho/cantidad hecho/costo-unitario]]}}]}
+
+  ;; La factura suma su neto al facturado del cliente y, si lleva asiento,
+  ;; mueve la cuenta de cada línea. Revertirla (nota de crédito) deshace ambos.
+  {:tipo-hecho/id      :ventas/factura
+   :tipo-hecho/datos   [:map
+                        [:pedido [:ref :ventas/pedido]]
+                        [:monto :monto]
+                        [:iva {:optional true} :monto]
+                        [:folio {:optional true} :cantidad]
+                        [:fecha :fecha]
+                        [:vencimiento :fecha]
+                        [:envio :texto]
+                        [:asiento {:optional true} [:map-of :keyword [:map
+                                                                      [:cuenta :keyword]
+                                                                      [:debe :monto]
+                                                                      [:haber :monto]]]]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :ventas/facturado
+                         :clave {:cliente [:-> hecho/pedido :hecho/datos :cliente]}
+                         :suma  {:monto hecho/monto}}
+                        {:saldo    :contabilidad/cuenta
+                         :cada     hecho/asiento
+                         :clave    {:cuenta cada/cuenta}
+                         :suma     {:debe cada/debe :haber cada/haber}}]}
+
+  {:tipo-hecho/id      :ventas/cobro
+   :tipo-hecho/datos   [:map
+                        [:cliente [:ref :cliente]]
+                        [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/boleta
+   :tipo-hecho/datos   [:map
+                        [:producto [:ref :producto]]
+                        [:cantidad :cantidad]
+                        [:precio-unitario :monto]
+                        [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/cobro-contado
+   :tipo-hecho/datos   [:map [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/nota-credito
+   :tipo-hecho/datos   [:map
+                        [:factura [:ref :ventas/factura]]
+                        [:monto :monto]
+                        [:fecha :fecha]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :conceptos
+ ;; El cupo menos lo que el cliente debe a la empresa en ventas: lo exigible
+ ;; (activo) y lo anotado por pedidos sin facturar (latente). Lo extinguido no
+ ;; cuenta, y lo cedido a un tercero ya no tiene a la empresa como acreedor.
+ [{:concepto/id         :credito/cupo-disponible
+   :concepto/version    1
+   :concepto/rige-desde #inst "2026-11-01"
+   :concepto/tipo       :monto
+   :concepto/params     {:cliente :ref}
+   :concepto/forma      [:- [:-> cliente :cliente/cupo]
+                            [:+ [:suma [:-> cada :compromiso/saldo :monto]
+                                       [:compromisos {:tipo     :ventas/por-cobrar
+                                                      :deudor   cliente
+                                                      :estado   :activo}]]
+                                [:suma [:-> cada :compromiso/saldo :monto]
+                                       [:compromisos {:tipo     :ventas/por-cobrar
+                                                      :deudor   cliente
+                                                      :estado   :latente}]]]]}]
+
+ :contratos
+ [;; ---------------------------------------------------------------- Cliente
+  ;; Los datos de la entidad se toman de la entrada completa, como en
+  ;; :registra-hecho, para que los campos propios de cada empresa pasen igual.
+  {:op/id        :ventas/alta-cliente
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entidad   :cliente
+   :op/entradas  [:map
+                  [:id :keyword]
+                  [:nombre :texto]
+                  [:cupo {:optional true} :monto]]
+   :op/salidas   {:cliente cliente/id}
+   :op/efectos
+   [[:crea-entidad :cliente {:id             entrada/id
+                             :cliente/nombre entrada/nombre
+                             :cliente/cupo   entrada/cupo}
+     :como cliente]]}
+
+  {:op/id        :ventas/modificar-cliente
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entidad   :cliente
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:nombre {:optional true} :texto]
+                  [:cupo {:optional true} :monto]]
+   :op/salidas   {:cliente entrada/cliente}
+   :op/efectos
+   [[:modifica-entidad entrada/cliente {:cliente/nombre entrada/nombre
+                                        :cliente/cupo   entrada/cupo}]]}
+
+  {:op/id        :ventas/desactivar-cliente
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:cliente [:ref :cliente]]]
+   :op/salidas   {:cliente entrada/cliente}
+   :op/efectos
+   [[:desactiva-entidad entrada/cliente]]}
+
+  ;; -------------------------------------------------------- Venta con pedido
+  {:op/id        :ventas/registrar-pedido
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:producto [:ref :producto]]
+                  [:cantidad :cantidad]
+                  [:precio-unitario :monto]]
+   :op/salidas   {:pedido  pedido/id
+                  :entrega entrega/id}
+   :op/efectos
+   [[:registra-hecho :ventas/pedido entrada :como pedido]
+    [:abre-compromiso {:tipo     :ventas/entrega-pendiente
+                       :deudor   empresa
+                       :acreedor entrada/cliente
+                       :origen   pedido/id
+                       :objeto   {:producto entrada/producto :cantidad entrada/cantidad}}
+     :como entrega]
+    ;; Anotado, no exigible hasta la factura: cuenta para el cupo disponible.
+    [:abre-compromiso {:tipo     :ventas/por-cobrar
+                       :deudor   entrada/cliente
+                       :acreedor empresa
+                       :estado   :latente
+                       :origen   pedido/id
+                       :objeto   {:monto [:* entrada/cantidad entrada/precio-unitario]}}]]}
+
+  {:op/id        :ventas/despachar
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:entrega [:ref :ventas/entrega-pendiente]]
+                  [:producto [:ref :producto]]
+                  [:bodega [:ref :bodega]]
+                  [:cantidad :cantidad]
+                  [:metodo {:optional true} :keyword]]
+   :op/salidas   {:despacho despacho/id}
+   :op/efectos
+   [[:registra-hecho :ventas/despacho
+     {:entrega        entrada/entrega
+      :producto       entrada/producto
+      :bodega         entrada/bodega
+      :cantidad       entrada/cantidad
+      :costo-unitario [:inventario/costo-unitario {:producto entrada/producto
+                                                   :bodega   entrada/bodega
+                                                   :cantidad entrada/cantidad
+                                                   :metodo   entrada/metodo}]}
+     :como despacho]
+    [:reduce-compromiso entrada/entrega {:cantidad entrada/cantidad}]
+    ;; Si el caso tiene stock reservado, la reserva baja en lo despachado.
+    [:cuando [:existe [:compromisos {:tipo :inventario/reservado :raiz caso/id :estado :activo}]]
+     [:reduce-compromiso [:compromisos {:tipo :inventario/reservado :raiz caso/id :estado :activo}]
+                         {:cantidad entrada/cantidad}]]]}
+
+  {:op/id        :ventas/emitir-factura
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/impl      :tributario/envio-dte
+   :op/entradas  [:map
+                  [:pedido [:ref :ventas/pedido]]
+                  [:monto :monto]
+                  [:fecha :fecha]
+                  [:vencimiento :fecha]
+                  [:iva {:optional true} :monto]
+                  [:folio {:optional true} :cantidad]
+                  [:cuenta-clientes {:optional true} :keyword]
+                  [:cuenta-ventas {:optional true} :keyword]
+                  [:cuenta-iva {:optional true} :keyword]]
+   :op/salidas   {:factura factura/id
+                  :cobro   cobro/id}
+   :op/efectos
+   [[:registra-hecho :ventas/factura
+     {:pedido      entrada/pedido
+      :monto       entrada/monto
+      :iva         entrada/iva
+      :folio       entrada/folio
+      :fecha       entrada/fecha
+      :vencimiento entrada/vencimiento
+      ;; El puerto lo atiende una implementación de la plataforma; devuelve el
+      ;; código de seguimiento.
+      :envio       impl/seguimiento
+      ;; Asiento solo si vienen las tres cuentas; sin IVA, el IVA es cero.
+      :asiento     [:si [:y entrada/cuenta-clientes entrada/cuenta-ventas entrada/cuenta-iva]
+                    {:clientes {:cuenta entrada/cuenta-clientes
+                                :debe   [:+ entrada/monto [:si entrada/iva entrada/iva [:* 0 entrada/monto]]]
+                                :haber  [:* 0 entrada/monto]}
+                     :ventas   {:cuenta entrada/cuenta-ventas
+                                :debe   [:* 0 entrada/monto]
+                                :haber  entrada/monto}
+                     :iva      {:cuenta entrada/cuenta-iva
+                                :debe   [:* 0 entrada/monto]
+                                :haber  [:si entrada/iva entrada/iva [:* 0 entrada/monto]]}}
+                    nil]}
+     :como factura]
+    [:cuando entrada/folio
+     [:registra-hecho :tributario/folio-usado {:documento :factura :folio entrada/folio}]]
+    [:extingue-compromiso [:compromisos {:tipo :ventas/por-cobrar :origen entrada/pedido :estado :latente}]
+                          :facturado]
+    [:abre-compromiso {:tipo     :ventas/por-cobrar
+                       :deudor   [:-> entrada/pedido :hecho/datos :cliente]
+                       :acreedor empresa
+                       :estado   :activo
+                       :vence    entrada/vencimiento
+                       :origen   factura/id
+                       :objeto   {:monto [:+ entrada/monto
+                                             [:si entrada/iva entrada/iva [:* 0 entrada/monto]]]}}
+     :como cobro]]}
+
+  ;; Aplica el pago a lo exigible del cliente, aunque abarque varias facturas.
+  ;; Lo cedido ya no tiene a la empresa como acreedor y queda fuera.
+  {:op/id        :ventas/registrar-cobro
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:monto :monto]]
+   :op/salidas   {:cobro cobro/id}
+   :op/efectos
+   [[:registra-hecho :ventas/cobro entrada :como cobro]
+    [:reduce-compromiso [:compromisos {:tipo     :ventas/por-cobrar
+                                       :deudor   entrada/cliente
+                                       :acreedor empresa
+                                       :estado   :activo}]
+                        {:monto entrada/monto}]]}
+
+  ;; ----------------------------------------------------------- Venta en mesón
+  ;; Tres hechos y ningún compromiso: no queda nada pendiente (D62).
+  {:op/id        :ventas/venta-mostrador
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:producto [:ref :producto]]
+                  [:bodega [:ref :bodega]]
+                  [:cantidad :cantidad]
+                  [:precio-unitario :monto]]
+   :op/salidas   {:boleta boleta/id}
+   :op/efectos
+   [[:registra-hecho :ventas/boleta
+     {:producto        entrada/producto
+      :cantidad        entrada/cantidad
+      :precio-unitario entrada/precio-unitario
+      :monto           [:* entrada/cantidad entrada/precio-unitario]}
+     :como boleta]
+    [:registra-hecho :ventas/despacho
+     {:producto       entrada/producto
+      :bodega         entrada/bodega
+      :cantidad       entrada/cantidad
+      :costo-unitario [:inventario/costo-unitario {:producto entrada/producto
+                                                   :bodega   entrada/bodega
+                                                   :cantidad entrada/cantidad
+                                                   :metodo   nil}]}]
+    [:registra-hecho :ventas/cobro-contado {:monto boleta/monto}]]}
+
+  ;; ---------------------------------------------------------- Nota de crédito
+  ;; Revertir la factura deshace lo que movió: el facturado del cliente y su
+  ;; asiento. El folio usado es otro hecho y no se revierte.
+  {:op/id        :ventas/emitir-nota-credito
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:factura [:ref :ventas/factura]]
+                  [:fecha :fecha]]
+   :op/salidas   {:nota nota/id}
+   :op/efectos
+   [[:registra-hecho :ventas/nota-credito
+     {:factura entrada/factura
+      :monto   [:-> entrada/factura :hecho/datos :monto]
+      :fecha   entrada/fecha}
+     :como nota]
+    [:revierte-hecho entrada/factura]
+    [:reduce-compromiso [:compromisos {:tipo :ventas/por-cobrar :origen entrada/factura :estado :activo}]
+                        {:monto [:+ [:-> entrada/factura :hecho/datos :monto]
+                                    [:si [:-> entrada/factura :hecho/datos :iva]
+                                         [:-> entrada/factura :hecho/datos :iva]
+                                         [:* 0 [:-> entrada/factura :hecho/datos :monto]]]]}]]}]}

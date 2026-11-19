@@ -213,11 +213,13 @@
       :vencimiento entrada/vencimiento
       :envio       impl/seguimiento
       :asiento     [:si entrada/cuenta-clientes
+                    ;; El cero va en la moneda del neto: un número suelto no es un monto.
                     {:clientes {:cuenta entrada/cuenta-clientes
                                 :debe   [:+ entrada/monto [:si entrada/iva entrada/iva 0]]
-                                :haber  0}
-                     :ventas   {:cuenta entrada/cuenta-ventas :debe 0 :haber entrada/monto}
-                     :iva      {:cuenta entrada/cuenta-iva :debe 0 :haber [:si entrada/iva entrada/iva 0]}}
+                                :haber  [:* 0 entrada/monto]}
+                     :ventas   {:cuenta entrada/cuenta-ventas :debe [:* 0 entrada/monto] :haber entrada/monto}
+                     :iva      {:cuenta entrada/cuenta-iva :debe [:* 0 entrada/monto]
+                                :haber  [:si entrada/iva entrada/iva [:* 0 entrada/monto]]}}
                     nil]}
      :como factura]
     [:cuando entrada/folio

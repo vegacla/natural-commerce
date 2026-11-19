@@ -6,7 +6,7 @@ Idioma del proyecto: español (documentos, nombres de dominio, conversación).
 
 ## Estado
 
-El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Prototipo ampliado aprobado (D81, `docs/prototipo-ampliado.md`): etapas 7 a 13, E10 a E27; etapas 7 a 13 hechas (bitácora, plan, maestros, las ocho formas de política, los diez verbos, el tiempo como actor, lo legal, el asiento, la sustitución de implementaciones, la composición en profundidad, SARA con un modelo de lenguaje, volumen y cobertura de las 74 operaciones). Falta E25 (contratos de un agente sin contexto). Revisión de madurez operativa de XTDB hecha (`docs/revision-xtdb.md`): se sigue con Clojure y XTDB, con tres condiciones antes de datos de clientes (D79; la cuarta se descartó, D80).
+El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembre de 2026). Prototipo mínimo: etapas 1 a 6 hechas (E1 a E9 y SARA mínima). Prototipo ampliado aprobado (D81, `docs/prototipo-ampliado.md`): etapas 7 a 14, E10 a E27, todas hechas (bitácora, plan, maestros, las ocho formas de política, los diez verbos, el tiempo como actor, lo legal, el asiento, la sustitución de implementaciones, la composición en profundidad, SARA con un modelo de lenguaje, volumen y cobertura de las 74 operaciones, y contratos escritos por un agente sin contexto: E25, con la descripción que recibió y su resultado en `docs/e25/`). Revisión de madurez operativa de XTDB hecha (`docs/revision-xtdb.md`): se sigue con Clojure y XTDB, con tres condiciones antes de datos de clientes (D79; la cuarta se descartó, D80).
 
 ## Documentos (leer en este orden)
 

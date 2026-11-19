@@ -12,6 +12,7 @@ Solo descubrimientos: lo que se observó en el sistema y no era evidente. No van
 | `xtdb-respaldo.md` | Respaldo y restauración en disco local, y cómo forzar un bloque. |
 | `nucleo.md` | Comportamientos no evidentes del núcleo de MARCO. |
 | `sdk-anthropic.md` | El SDK de Anthropic para Java junto a XTDB (okhttp), errores de cuenta y cómo pedir la clave en PowerShell. |
+| `agente-sin-contexto.md` | Cómo aislar un subagente que escribe contratos sin contexto de diseño, y cómo medir sus correcciones (E25). |
 | `entorno-jdk.md` | JDK 21, `JAVA_CMD`, opciones de JVM, tiempos y memoria de las pruebas, y un choque con Malli. |
 
 Cada entrada dice si fue verificada y cómo. Una hipótesis sin verificar se marca como tal. `reproducciones/` guarda los programas mínimos que verifican un comportamiento.

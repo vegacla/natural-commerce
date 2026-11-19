@@ -79,6 +79,19 @@ Cada tipo de hecho se declara una vez (D57): sus datos, su régimen (D16) y los 
                        :suma  {:cantidad hecho/cantidad}}]}   ; el costo lo fija la política de valorización
 ```
 
+Un movimiento resta sumando un negativo: `{:cantidad [:* -1 hecho/cantidad]}`.
+
+Con `:cada`, el hecho mueve el saldo una vez por cada elemento de una colección de sus datos (D95). Ese elemento se nombra `cada`. Un asiento contable es un mapa de líneas, y cada línea mueve el saldo de su cuenta. Si la colección es nula, no se mueve nada.
+
+```clojure
+{:saldo :contabilidad/cuenta
+ :cada  hecho/asiento                      ; {:clientes {:cuenta … :debe … :haber …} :ventas {…}}
+ :clave {:cuenta cada/cuenta}
+ :suma  {:debe cada/debe :haber cada/haber}}
+```
+
+Revertir un hecho (`:revierte-hecho`) deshace los saldos que movió.
+
 ### 2.3 Compromiso
 
 Algo pendiente entre partes. Se guarda (D29).
@@ -162,6 +175,8 @@ Uno solo para condiciones, conceptos y valores fijados por política (D25). Los 
 | `nombre/x` | Dato de un resultado nombrado con `:como` en los efectos de un contrato |
 | `cada/x` | Dato de cada elemento, dentro de una operación sobre una colección |
 
+En un contrato están todas estas referencias. En un concepto, solo sus parámetros y `cada`: un concepto no conoce la empresa, porque ya se evalúa dentro de una. `impl/x` es el resultado del puerto que nombra `:op/impl` (sección 5).
+
 Un símbolo sin barra (`entrada`, `cada`) es el documento completo. Un dato ausente es un dato que falta (P4); uno presente sin valor, como una entrada opcional no entregada, vale nada y no falta.
 
 Para navegar entre entidades: `[:-> entrada/producto :producto/categoria]`.
@@ -185,6 +200,10 @@ Las colecciones se obtienen con `[:hechos filtro]` y `[:compromisos filtro]`, do
 `[:caso c1 v1 c2 v2 ... defecto]` devuelve el valor de la primera condición que se cumple.
 
 Una operación que no está en esta sección no existe: el validador la rechaza.
+
+Un mapa de expresiones es una expresión: se evalúa cada valor, como en el `:objeto` de un compromiso. Un vector de valores, no: el validador lo rechaza. Una lista de líneas se escribe como un mapa con un nombre por línea.
+
+Un cero en un monto lleva la moneda, igual que cualquier monto. Para no fijar la moneda en el contrato, `[:* 0 entrada/monto]` da el cero en la moneda de otro dato.
 
 ### 3.3 Restricciones
 
@@ -248,9 +267,20 @@ Una capacidad publica sus conceptos. El catálogo de cada empresa reúne los del
                      :estado :latente
                      :origen orden/id
                      :objeto {:monto [:* entrada/cantidad entrada/precio-unitario]}}]]
- :op/inverso   :compras/anular-orden
- :op/impl      nc.compras/emitir-orden!}    ; opcional (ver P6)
+ :op/inverso   :compras/anular-orden}
 ```
+
+`:op/impl` nombra un puerto: una palabra clave como `:tributario/envio-dte`, no una función (D96). Un registro de la plataforma dice qué implementación lo atiende y en qué versión, y la versión queda en el hecho. El resultado del puerto se usa como `impl/x`, por ejemplo `:envio impl/seguimiento` en los datos de la factura.
+
+`:op/entidad` declara que la operación crea o modifica una entidad de ese tipo. Con eso, la operación recibe también los campos propios que cada empresa agregó a ese tipo (D3), sin que el contrato los nombre. Los verbos de entidad se escriben así:
+
+```clojure
+[:crea-entidad :cliente {:id entrada/id :cliente/nombre entrada/nombre} :como cliente]
+[:modifica-entidad entrada/cliente {:cliente/nombre entrada/nombre}]  ; un valor nulo no cambia el campo
+[:desactiva-entidad entrada/cliente]
+```
+
+Los campos llevan su nombre completo (`:cliente/nombre`). Un verbo de entidad no necesita un hecho.
 
 `:op/salidas` declara lo que la operación devuelve (D10): un mapa de nombre a expresión, cuyo tipo se deduce porque las expresiones son tipadas. Con eso MARCO comprueba que la salida de una operación sirve de entrada a otra, y SARA sabe qué mostrar. En una consulta, las salidas son todo el contrato.
 
@@ -269,7 +299,7 @@ Los verbos son diez (D30, D56):
 | `:registra-hecho` `:revierte-hecho` | Hecho |
 | `:abre-compromiso` `:modifica-compromiso` `:reduce-compromiso` `:extingue-compromiso` `:transfiere-compromiso` | Compromiso |
 
-Un verbo de compromiso recibe un compromiso o una colección de ellos (T9 del análisis), y va siempre en la misma operación que un hecho (D61).
+Un verbo de compromiso recibe un compromiso o una colección de ellos (T9 del análisis), y va siempre en la misma operación que un hecho (D61). Sobre una colección vacía no hace nada y no es un error: el despacho reduce `[:compromisos {:tipo :inventario/reservado :raiz caso/id :estado :activo}]`, la reserva del caso si la hay. Una reducción sobre varios compromisos los recorre del que vence antes al que vence después.
 
 Un contrato puede registrar varios hechos, cada uno con su nombre (`:como`). Abre compromisos solo por lo que queda pendiente al terminar: una venta de mostrador pagada al contado registra boleta, entrega y cobro, y no abre ninguno (D62).
 
