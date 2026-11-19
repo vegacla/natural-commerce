@@ -43,7 +43,8 @@
          (get-in pendientes [:compromisos id])
          (alm/leer almacen empresa :hechos id consulta)
          (alm/leer almacen empresa :compromisos id consulta))
-     (alm/leer almacen empresa :entidades id consulta))))
+     (or (get-in pendientes [:entidades id])
+         (alm/leer almacen empresa :entidades id consulta)))))
 
 (defn- coincide? [doc filtro] (every? (fn [[k x]] (= x (get doc k))) filtro))
 
@@ -129,6 +130,28 @@
   [estado]
   (into {} (for [p (vigentes estado) :when (= :inicio-del-caso (:politica/aplica-con p))]
              [(:politica/id p) (:politica/version p)])))
+
+;; --- Plan contratado (visión 3.2, D2) -----------------------------------------------
+
+(defn plan
+  "El plan que rige en el instante de la vista, o nil si la empresa no tiene uno.
+  Sin plan, la empresa tiene todas las capacidades del catálogo (D83)."
+  [{:keys [almacen empresa consulta]}]
+  (alm/leer almacen empresa :planes :plan consulta))
+
+(defn habilitada?
+  "Si la operación pertenece a una capacidad del plan de la empresa."
+  ([estado op] (habilitada? estado (plan estado) op))
+  ([estado plan op]
+   (or (nil? plan)
+       (contains? (set (:plan/capacidades plan))
+                  (get-in estado [:catalogo :contratos op :op/capacidad])))))
+
+(defn operaciones
+  "Los contratos de las operaciones que la empresa puede usar: las de su plan."
+  [estado]
+  (let [p (plan estado)]
+    (into (sorted-map) (filter #(habilitada? estado p (key %))) (get-in estado [:catalogo :contratos]))))
 
 ;; --- Catálogo --------------------------------------------------------------------
 

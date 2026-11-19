@@ -305,3 +305,52 @@ Ninguno en el núcleo. En la prueba, dos cosas que la documentación no dice:
 - Con el volumen del prototipo no se cerró ningún bloque: todo estaba en el log (ver `docs/knowledge/xtdb-respaldo.md`).
 - Sin el log, XTDB se niega a arrancar (ver `docs/knowledge/xtdb-respaldo.md`).
 - Criterio de salida: seguir con Clojure y XTDB (D79), con cuatro condiciones antes de datos de clientes.
+
+## Etapa 7: bitácora, plan contratado y maestros (2026-11-18)
+
+Prototipo ampliado (D81). Escenarios E27, E10 y E11.
+
+### Líneas del núcleo
+
+| Archivo | Qué cambió | Líneas |
+|---|---|---|
+| `src/nc/almacen.clj` | Decisiones y planes como tablas; `escribir!` exige una decisión ejecutada; `cargar-entidades!` | +43 |
+| `src/nc/ejecutor.clj` | Verbos de entidad (M1); decisión en cada evaluación; `aplicar!` revisa el plan antes de escribir (D82) | +104 |
+| `src/nc/bitacora.clj` | Lectura de la bitácora y verificación de invariantes | 53 |
+| `src/nc/plan.clj` | Cambiar el plan, con las políticas afectadas y la elección de D36 | 59 |
+| `src/nc/catalogo.clj`, `estado.clj`, `resolvedor.clj` | Canon en varios archivos; campos propios como entradas (D84); plan en el resolvedor (D83) | +54 |
+| `src/nc/expresion.clj`, `esquema.clj` | `entidad/x`; `:op/entidad` | +2 |
+| **Total del núcleo de MARCO** | | **1.935** (antes 1.620, con los resguardos de D80) |
+
+SARA: +2 líneas (ofrecer solo las operaciones del plan; leer una palabra clave). Las operaciones de cliente no tienen interfaz propia.
+
+Pruebas: 1.455 líneas; 7 pruebas nuevas. Las 55 pruebas, con 442 comprobaciones, pasan. Toda prueba que crea empresas verifica al final los invariantes de la bitácora en cada una, incluidos los datos de ejemplo.
+
+### Líneas por operación
+
+Tres contratos nuevos en `resources/canon/ventas.edn` (40 líneas con el tipo de entidad cliente), sin código propio: alta de cliente (14), modificar cliente (12) y desactivar cliente (8). El núcleo creció por mecanismo (verbos de entidad, bitácora, plan), no por operación.
+
+### Rodeos al almacén
+
+Ninguno nuevo. La decisión se escribe en la misma transacción que los cambios con lo mismo que ya se usaba: un `ASSERT` para que no se repita.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente, detectadas por las pruebas: dos en el núcleo (al modificar una entidad se arrastraban `:empresa`, `:nc/decision` y los campos opcionales no entregados; ver `knowledge/nucleo.md`) y una de SARA (`:keyword` no tenía traducción de tipo).
+
+### Mutaciones
+
+`scripts/mutaciones.py` suma siete mutaciones (escribir sin decisión, rechazo sin bitácora, ejecutar sin confirmación, `aplicar!` sin revisar el plan, operación fuera del plan, entidad desactivada usable, otro módulo que llama a `escribir!`). Las 13 mutaciones del script son detectadas.
+
+### Hallazgos de la etapa
+
+- **El hueco de `aplicar!` era real.** Antes de D82, un plan no listo se podía aplicar sin que nada lo impidiera. Su mutación hace fallar siete pruebas: era el camino que usaban E7 y E9.
+- **Desactivar una entidad se defiende dos veces.** El resolvedor la rechaza como entrada que no calza (D65) y el ejecutor se niega a modificarla. Con la primera quitada, la segunda corta la operación con un error, que queda en la bitácora como `:error`.
+- **Que la carga inicial no pase por MARCO es una excepción acotada.** Solo escribe entidades, y la verificación distingue una entidad cargada (sin decisión) de una escrita por una operación (con decisión).
+- **E10 se probó con compras y ventas**, no con inventario como dice la propuesta: despacho y reserva llegan en las etapas 8 y 9. El mecanismo es el mismo; el escenario se extiende cuando existan.
+- **E11, "un cliente desactivado no recibe un pedido"**, se probó con modificar cliente; el pedido llega en la etapa 8.
+
+### Pendiente
+
+- Extender E10 y E11 con pedido, reserva y despacho (etapas 8 y 9).

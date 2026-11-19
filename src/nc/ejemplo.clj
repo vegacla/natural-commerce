@@ -15,12 +15,12 @@
 (defn- configuracion [{:keys [configuracion]}]
   (if configuracion (cat/leer configuracion) {}))
 
-(defn- empresa! [almacen canon empresa entidades datos]
+(defn- empresa! [almacen empresa entidades datos]
   (let [config (configuracion datos)]
-    (alm/escribir! almacen empresa {:entidades entidades})
+    (alm/cargar-entidades! almacen empresa entidades)
     (doseq [p (:politicas config)]
       (alm/publicar! almacen empresa :politicas (assoc p :politica/rige-desde (en-dias -30))))
-    (est/abrir almacen (cat/armar canon config) empresa)))
+    (est/abrir almacen (cat/de-empresa config) empresa)))
 
 (defn- con-salidas [salidas entradas]
   (walk/postwalk (fn [x]
@@ -35,8 +35,7 @@
   ([almacen] (cargar! almacen "ejemplos/compras.edn"))
   ([almacen recurso]
    (let [{:keys [empresas entidades pasos]} (cat/leer recurso)
-         canon   (cat/leer "canon/compras.edn")
-         estados (into (sorted-map) (for [[e datos] empresas] [e (empresa! almacen canon e entidades datos)]))]
+         estados (into (sorted-map) (for [[e datos] empresas] [e (empresa! almacen e entidades datos)]))]
      (reduce (fn [salidas {:keys [empresa actor op entradas como]}]
                (let [r (ej/ejecutar! (estados empresa) actor op (con-salidas salidas entradas) {:confirmado true})]
                  (when-not (= :ejecutado (:estado r))
@@ -51,6 +50,5 @@
   por ejemplo uno restaurado de un respaldo: {empresa estado}."
   ([almacen] (vistas almacen "ejemplos/compras.edn"))
   ([almacen recurso]
-   (let [canon (cat/leer "canon/compras.edn")]
-     (into (sorted-map) (for [[e datos] (:empresas (cat/leer recurso))]
-                          [e (est/abrir almacen (cat/armar canon (configuracion datos)) e)])))))
+   (into (sorted-map) (for [[e datos] (:empresas (cat/leer recurso))]
+                        [e (est/abrir almacen (cat/de-empresa (configuracion datos)) e)]))))

@@ -9,11 +9,7 @@
             [nc.marco-test :as m]
             [nc.resolvedor :as r]))
 
-(use-fixtures :once
-  (fn [pruebas]
-    (let [a (alm/abrir)]
-      (try (binding [m/*alm* a] (pruebas))
-           (finally (alm/cerrar a))))))
+(use-fixtures :once m/con-almacen)
 
 (defn- recepcion [orden cantidad]
   {:orden orden :producto :P-100 :bodega :bodega/central :cantidad [:cantidad cantidad :un]})

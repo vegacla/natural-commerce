@@ -24,16 +24,36 @@
              :when (and (vector? ef) (= :abre-compromiso (first ef)) (map? (second ef)))]
          (:tipo (second ef)))))
 
+(defn- extensiones-por-tipo
+  "Tipo de entidad → {campo tipo} con los campos que la empresa agregó (D3)."
+  [extensiones]
+  (reduce (fn [m {:extension/keys [tipo campo]}] (assoc-in m [tipo (first campo)] (second campo)))
+          {} extensiones))
+
+(defn- con-campos-propios
+  "Una operación que declara `:op/entidad` recibe además, como entradas
+  opcionales, los campos que la empresa agregó a ese tipo (D3)."
+  [extensiones {:op/keys [entidad] :as contrato}]
+  (if-let [campos (and entidad (seq (extensiones entidad)))]
+    (update contrato :op/entradas into (for [[k t] campos] [k {:optional true} t]))
+    contrato))
+
+(def canon
+  "Los recursos del canon de la plataforma, en el orden en que se unen."
+  ["canon/compras.edn" "canon/ventas.edn"])
+
 (defn armar
   "Une varias partes en un catálogo. Los campos de entidad incluyen los que cada
   empresa agrega como extensión (D3)."
   [& partes]
   (let [{:keys [entidades tipos-hecho conceptos contratos politicas caminos extensiones]}
-        (apply merge-with into (map #(update-vals % vec) partes))]
+        (apply merge-with into (map #(update-vals % vec) partes))
+        ext (extensiones-por-tipo extensiones)]
     {:entidades   (por :entidad/tipo entidades)
+     :extensiones ext
      :tipos-hecho (por :tipo-hecho/id tipos-hecho)
      :conceptos   (por :concepto/id conceptos)
-     :contratos   (por :op/id contratos)
+     :contratos   (por :op/id (map #(con-campos-propios ext %) contratos))
      :tipos-compromiso (tipos-de-compromiso contratos)
      :politicas   (vec politicas)
      :caminos     (vec caminos)
@@ -44,6 +64,11 @@
   "Arma un catálogo desde recursos EDN."
   [& recursos]
   (apply armar (map leer recursos)))
+
+(defn de-empresa
+  "El catálogo de una empresa: el canon completo y su configuración."
+  [configuracion]
+  (apply armar (concat (map leer canon) [configuracion])))
 
 (defn problemas
   "Todos los problemas de un catálogo, cada uno con :de, el dato al que

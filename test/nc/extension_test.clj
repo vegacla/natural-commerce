@@ -8,11 +8,7 @@
             [nc.marco-test :as m]
             [nc.resolvedor :as r]))
 
-(use-fixtures :once
-  (fn [pruebas]
-    (let [a (alm/abrir)]
-      (try (binding [m/*alm* a] (pruebas))
-           (finally (alm/cerrar a))))))
+(use-fixtures :once m/con-almacen)
 
 (defn- pago-de [empresa orden]
   (first (alm/buscar m/*alm* (:empresa empresa) :compromisos

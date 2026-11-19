@@ -94,6 +94,7 @@
    [:op/salidas {:optional true} [:map-of :keyword :any]]
    [:op/efectos {:optional true} [:vector :any]]
    [:op/inverso {:optional true} :qualified-keyword]
+   [:op/entidad {:optional true} :keyword]
    [:op/impl {:optional true} :qualified-symbol]])
 
 (def eventos

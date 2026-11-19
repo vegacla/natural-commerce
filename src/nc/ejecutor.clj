@@ -5,7 +5,11 @@
 
   Antes de aplicar nada pregunta al resolvedor. Ejecuta solo si la operación está
   lista y quien ejecuta confirmó, o una política lo exime (D53). Todo lo que la
-  operación produce se escribe en una transacción."
+  operación produce se escribe en una transacción.
+
+  Cada evaluación deja una decisión en la bitácora (D82), también las que no
+  ejecutan: rechazos, faltas de confirmación, conflictos y errores del contrato.
+  Es el único módulo que llama a `alm/escribir!`."
   (:require [malli.core :as m]
             [malli.error :as me]
             [nc.almacen :as alm]
@@ -21,6 +25,7 @@
 ;;   :refs               referencias, que crecen con cada `:como`
 ;;   :hechos             hechos registrados, en orden
 ;;   :compromisos        id → compromiso abierto o cambiado por la operación
+;;   :entidades          id → entidad creada o cambiada por la operación
 ;;   :nuevos             ids de los compromisos que abrió
 ;;   :saldos             [concepto clave] → saldo movido
 ;;   :caso               compromiso raíz, si ya se conoce
@@ -28,7 +33,8 @@
 
 (defn- pendientes [app]
   {:hechos      (into {} (map (juxt :hecho/id identity)) (:hechos app))
-   :compromisos (:compromisos app)})
+   :compromisos (:compromisos app)
+   :entidades   (:entidades app)})
 
 (defn- contexto [app]
   (est/contexto (:estado app) (:refs app) (pendientes app) (:traza app)))
@@ -134,8 +140,65 @@
 (defn- extingue-compromiso [app [x causa]]
   (cambiar app (de-objetivo app x) #(extinguir app % causa)))
 
+;; --- Entidades ------------------------------------------------------------------
+
+(defn- campos-propios
+  "Los campos que la empresa agregó al tipo (D3) y vienen en la entrada."
+  [app tipo]
+  (sin-nada (select-keys (get-in app [:refs 'entrada])
+                         (keys (get-in app [:estado :catalogo :extensiones tipo])))))
+
+(defn- validar-entidad!
+  "Cada campo pertenece al tipo, del canon o de la empresa, y calza con su tipo."
+  [app {:entidad/keys [tipo] :as doc}]
+  (let [catalogo (get-in app [:estado :catalogo])
+        tipos    (merge (get-in catalogo [:entidades tipo :entidad/campos])
+                        (get-in catalogo [:extensiones tipo]))]
+    (doseq [[k x] (dissoc doc :entidad/id :entidad/tipo :entidad/activa)]
+      (let [forma (or (tipos k)
+                      (e/error! :campo-desconocido (str "El tipo " tipo " no tiene el campo " k) {:campo k}))
+            forma (if (and (vector? forma) (map? (second forma))) (into [(first forma)] (drop 2 forma)) forma)]
+        (when-let [error (some-> (esq/esquema-de-datos forma) (m/explain x))]
+          (e/error! :datos-invalidos (str k ": " (me/humanize error)) {:campo k}))))
+    doc))
+
+(defn- entidad-activa [app x]
+  (let [id  (if (map? x) (:entidad/id x) x)
+        doc (est/leer (:estado app) (pendientes app) id)]
+    (cond
+      (not (contains? doc :entidad/tipo)) (e/error! :no-es-entidad (str (pr-str id) " no es una entidad") {:id id})
+      (false? (:entidad/activa doc))      (e/error! :entidad-desactivada (str (pr-str id) " está desactivada") {:id id})
+      ;; Lo que el almacén agrega al guardar no es parte de la entidad.
+      :else (dissoc doc :empresa :nc/decision))))
+
+(defn- guardar-entidad [app doc]
+  [(assoc-in app [:entidades (:entidad/id doc)] doc) doc])
+
+(defn- crea-entidad [app [tipo campos]]
+  (let [id (:id campos)]
+    (when-not (contains? (get-in app [:estado :catalogo :entidades]) tipo)
+      (e/error! :tipo-entidad-desconocido (str "No existe el tipo de entidad " tipo) {:tipo tipo}))
+    (when-not (keyword? id)
+      (e/error! :entidad-sin-id "Una entidad nueva necesita un :id (palabra clave)" {:tipo tipo}))
+    (when (est/leer (:estado app) (pendientes app) id)
+      (e/error! :entidad-existente (str "Ya existe " (pr-str id)) {:id id}))
+    (guardar-entidad app (validar-entidad! app (merge (sin-nada (dissoc campos :id))
+                                                      (campos-propios app tipo)
+                                                      {:entidad/id id :entidad/tipo tipo :entidad/activa true})))))
+
+(defn- modifica-entidad [app [x cambios]]
+  (let [doc (entidad-activa app x)]
+    (guardar-entidad app (validar-entidad! app (merge doc (sin-nada cambios)
+                                                      (campos-propios app (:entidad/tipo doc)))))))
+
+(defn- desactiva-entidad [app [x]]
+  (guardar-entidad app (assoc (entidad-activa app x) :entidad/activa false)))
+
 (def ^:private verbos
-  {:registra-hecho      registra-hecho
+  {:crea-entidad        crea-entidad
+   :modifica-entidad    modifica-entidad
+   :desactiva-entidad   desactiva-entidad
+   :registra-hecho      registra-hecho
    :abre-compromiso     abre-compromiso
    :modifica-compromiso modifica-compromiso
    :reduce-compromiso   reduce-compromiso
@@ -170,7 +233,8 @@
                             (= id caso)              (assoc c :compromiso/reglas (merge (est/reglas-de-inicio (:estado app)) reglas))
                             :else                    (assoc c :compromiso/reglas reglas)))
                         (:compromisos app))
-     :saldos      (mapv #(assoc % :saldo/reglas conceptos) (vals (:saldos app)))}))
+     :saldos      (mapv #(assoc % :saldo/reglas conceptos) (vals (:saldos app)))
+     :entidades   (vec (vals (:entidades app)))}))
 
 (defn- salidas [estado contrato refs]
   (let [ctx (est/contexto estado refs)]
@@ -179,31 +243,101 @@
 (defn preparar
   "Lo que haría ejecutar `op` ahora, sin escribir nada: la respuesta del
   resolvedor y, si la operación está lista y cambia algo, los cambios. Lleva la
-  marca de la empresa leída antes que todo lo demás (D74)."
+  marca de la empresa leída antes que todo lo demás (D74). Un error del contrato
+  al aplicar los efectos queda en `:error`."
   [estado actor op entradas]
   (let [marca (alm/marca (:almacen estado) (:empresa estado))
         {:keys [resolucion contrato refs reglas caso]} (r/analizar estado actor op entradas)
-        plan  {:op op :resolucion resolucion :contrato contrato :refs refs :reglas reglas :marca marca}]
+        plan  {:op op :actor actor :entradas entradas :resolucion resolucion :contrato contrato
+               :refs refs :reglas reglas :marca marca}]
     (if (and (= :listo (:estado resolucion)) (= :efecto (:op/tipo contrato)) (not (:al estado)))
-      (let [app (reduce efecto
-                        {:estado estado :op op :actor actor :refs refs :caso caso :traza (atom {})
-                         :hechos [] :compromisos {} :nuevos #{} :saldos {}}
-                        (:op/efectos contrato))]
-        (assoc plan :app app :cambios (cerrar app reglas)))
+      (try
+        (let [app (reduce efecto
+                          {:estado estado :op op :actor actor :refs refs :caso caso :traza (atom {})
+                           :hechos [] :compromisos {} :nuevos #{} :saldos {} :entidades {}}
+                          (:op/efectos contrato))]
+          (assoc plan :app app :cambios (cerrar app reglas)))
+        (catch clojure.lang.ExceptionInfo ex
+          (if-let [tipo (:nc/error (ex-data ex))]
+            (assoc plan :error {:tipo tipo :mensaje (ex-message ex)} :excepcion ex)
+            (throw ex))))
       plan)))
 
+;; --- Bitácora (D82) ----------------------------------------------------------------
+
+(defn- confirmacion [resolucion confirmado]
+  (cond (= :eximida (:confirmacion resolucion)) :eximida
+        confirmado                              :confirmada
+        :else                                   :falta))
+
+(defn- decision
+  "Lo que MARCO decidió en una evaluación, para la bitácora."
+  [{:keys [op actor entradas resolucion cambios error]} resultado {:keys [confirmado origen]}]
+  (sin-nada {:decision/id           (random-uuid)
+             :decision/en           (java.util.Date.)
+             :decision/actor        actor
+             :decision/origen       (or origen :persona)
+             :decision/operacion    op
+             :decision/entradas     (sin-nada entradas)
+             :decision/resultado    resultado
+             :decision/requisitos   (:requisitos resolucion)
+             :decision/reglas       (:reglas resolucion)
+             :decision/confirmacion (confirmacion resolucion confirmado)
+             :decision/caso         (:caso resolucion)
+             :decision/error        error
+             :decision/hechos       (when (= :ejecutado resultado) (mapv :hecho/id (:hechos cambios)))}))
+
+(defn- anotar!
+  "Guarda una decisión que no escribe cambios. Devuelve su identificador."
+  [estado plan resultado opts]
+  (let [d (decision plan resultado opts)]
+    (alm/escribir! (:almacen estado) (:empresa estado) {:decision d})
+    (:decision/id d)))
+
+;; --- Ejecución ---------------------------------------------------------------------
+
+(defn- resultado-de
+  "Qué corresponde hacer con un plan: :aplicar, o el resultado que lo impide."
+  [estado {:keys [resolucion contrato error]} confirmado]
+  (cond
+    (not= :listo (:estado resolucion))                               (:estado resolucion)
+    (not= :efecto (:op/tipo contrato))                               :consultado
+    (:al estado)                                                     :solo-lectura
+    error                                                            :error
+    (and (not confirmado) (= :requerida (:confirmacion resolucion))) :por-confirmar
+    :else                                                            :aplicar))
+
 (defn aplicar!
-  "Escribe los cambios preparados, solo si el estado de la empresa no cambió
-  desde que se prepararon (D49). Si cambió, falla con :conflicto y nada queda
-  escrito."
-  [estado {:keys [app cambios marca contrato reglas]}]
-  (let [{:keys [registro]} (alm/escribir! (:almacen estado) (:empresa estado) cambios {:marca marca})]
-    {:estado   :ejecutado
-     :salidas  (salidas estado contrato (:refs app))
-     :caso     (get-in app [:caso :compromiso/id])
-     :hechos   (mapv :hecho/id (:hechos cambios))
-     :reglas   (merge reglas (:reglas @(:traza app)))
-     :registro registro}))
+  "Aplica un plan preparado. Escribe solo si el plan está listo, confirmado o
+  eximido, y el estado de la empresa no cambió desde que se preparó (D49, D74).
+  Toda llamada deja su decisión en la bitácora (D82): la ejecución, en la misma
+  transacción que los cambios; lo demás, sola. Un conflicto se anota y lanza
+  :conflicto; un error del contrato se anota y se vuelve a lanzar."
+  ([estado plan] (aplicar! estado plan {:confirmado true}))
+  ([estado {:keys [app cambios marca contrato reglas resolucion] :as plan} {:keys [confirmado] :as opts}]
+   (let [r (resultado-de estado plan confirmado)]
+     (case r
+       :solo-lectura (e/error! :solo-lectura "En otra fecha solo se consulta: el pasado no se corrige (D18)" {:op (:op plan)})
+       :error        (do (anotar! estado plan :error opts) (throw (:excepcion plan)))
+       :consultado   {:estado   :consultado
+                      :salidas  (salidas estado contrato (:refs plan))
+                      :decision (anotar! estado plan :consultado opts)}
+       :aplicar      (let [d (decision plan :ejecutado opts)]
+                       (try
+                         (let [{:keys [registro]} (alm/escribir! (:almacen estado) (:empresa estado)
+                                                                 (assoc cambios :decision d) {:marca marca})]
+                           {:estado   :ejecutado
+                            :salidas  (salidas estado contrato (:refs app))
+                            :caso     (get-in app [:caso :compromiso/id])
+                            :hechos   (mapv :hecho/id (:hechos cambios))
+                            :reglas   (merge reglas (:reglas @(:traza app)))
+                            :registro registro
+                            :decision (:decision/id d)})
+                         (catch clojure.lang.ExceptionInfo ex
+                           (when (= :conflicto (:nc/error (ex-data ex)))
+                             (anotar! estado plan :conflicto opts))
+                           (throw ex))))
+       (assoc resolucion :estado r :decision (anotar! estado plan r opts))))))
 
 (def ^:private intentos 5)
 
@@ -213,29 +347,16 @@
   "Ejecuta `op` con `entradas` en nombre de `actor`. Si la operación no está
   lista, devuelve la respuesta del resolvedor (`:bloqueado` o `:prohibido`); si
   falta la confirmación, la misma respuesta con estado `:por-confirmar`. Una
-  consulta no cambia nada y no se confirma.
+  consulta no cambia nada y no se confirma. Toda respuesta lleva `:decision`, su
+  entrada en la bitácora (D82).
+
+  `:origen` dice de dónde vino el pedido: :persona (por omisión), :sara, :marco.
 
   Si otra escritura se adelanta, vuelve a preparar desde el estado nuevo: las
   políticas se verifican otra vez antes de escribir (D49, D74)."
-  [estado actor op entradas {:keys [confirmado]}]
+  [estado actor op entradas opts]
   (loop [intento 1]
-    (let [{:keys [resolucion contrato refs] :as plan} (preparar estado actor op entradas)
-          resultado
-          (cond
-            (not= :listo (:estado resolucion))
-            resolucion
-
-            (not= :efecto (:op/tipo contrato))
-            {:estado :consultado :salidas (salidas estado contrato refs)}
-
-            (:al estado)
-            (e/error! :solo-lectura "En otra fecha solo se consulta: el pasado no se corrige (D18)" {:op op})
-
-            (and (not confirmado) (= :requerida (:confirmacion resolucion)))
-            (assoc resolucion :estado :por-confirmar)
-
-            :else
-            (try (aplicar! estado plan)
-                 (catch clojure.lang.ExceptionInfo ex
-                   (if (and (conflicto? ex) (< intento intentos)) ::otra-vez (throw ex)))))]
+    (let [resultado (try (aplicar! estado (preparar estado actor op entradas) opts)
+                         (catch clojure.lang.ExceptionInfo ex
+                           (if (and (conflicto? ex) (< intento intentos)) ::otra-vez (throw ex))))]
       (if (= ::otra-vez resultado) (recur (inc intento)) resultado))))

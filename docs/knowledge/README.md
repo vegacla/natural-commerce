@@ -10,4 +10,5 @@ Solo descubrimientos: lo que se observó en el sistema y no era evidente. No van
 | `xtdb-trampas.md` | Comportamientos de XTDB 2.2 que costaron tiempo. |
 | `xtdb-bitemporalidad.md` | Validez y registro: qué entrega XTDB y qué hay que resolver. |
 | `xtdb-respaldo.md` | Respaldo y restauración en disco local, y cómo forzar un bloque. |
+| `nucleo.md` | Comportamientos no evidentes del núcleo de MARCO. |
 | `entorno-jdk.md` | JDK 21, `JAVA_CMD`, opciones de JVM y una trampa de Malli. |

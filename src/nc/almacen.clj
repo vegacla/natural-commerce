@@ -13,6 +13,11 @@
   pisa un compromiso ajeno. Los verifican `nc.separacion-test` y
   `nc.resguardos-test`.
 
+  Bitácora (D82): `escribir!` exige la decisión de MARCO que produjo los
+  cambios, la guarda en la misma transacción y marca cada documento escrito con
+  `:nc/decision`. Solo la carga inicial de entidades (`cargar-entidades!`) se
+  escribe sin decisión.
+
   Verificar y aplicar ocurren en una transacción (D49, D74): cada empresa tiene
   una marca que crece con cada escritura. Quien escribe declara la marca que vio
   al leer; si otra escritura la movió, la transacción completa falla."
@@ -56,13 +61,16 @@
    :politicas   :politica/id
    :conceptos   :concepto/id
    :caminos     :camino/id
+   :planes      :plan/id
+   :decisiones  :decision/id
    :marcas      nil})
 
 (def ^:private versionadas
   "Tablas cuyo dato cambia en operación, con :version y :rige-desde (D8)."
   {:politicas [:politica/version :politica/rige-desde]
    :conceptos [:concepto/version :concepto/rige-desde]
-   :caminos   [:camino/version :camino/rige-desde]})
+   :caminos   [:camino/version :camino/rige-desde]
+   :planes    [:plan/version :plan/rige-desde]})
 
 (defn- uuid-de [x] (UUID/nameUUIDFromBytes (.getBytes (pr-str x) "UTF-8")))
 
@@ -73,7 +81,7 @@
   empresa e identificador de dominio, para que dos empresas puedan usar el mismo."
   [tabla empresa doc]
   (case tabla
-    (:hechos :compromisos) (get doc (tablas tabla))
+    (:hechos :compromisos :decisiones) (get doc (tablas tabla))
     :saldos                (uuid-de [empresa tabla (clave-saldo doc)])
     :marcas                (uuid-de [empresa tabla])
     (uuid-de [empresa tabla (get doc (tablas tabla))])))
@@ -184,12 +192,13 @@
 
 ;; --- Escritura -----------------------------------------------------------------
 
-(defn- put [tabla empresa doc & [periodo]]
+(defn- put [tabla empresa doc & [periodo decision]]
   (exigir-empresa! empresa)
   (when (and (contains? doc :empresa) (not= empresa (:empresa doc)))
     (error! :documento-ajeno "El documento es de otra empresa" {:empresa empresa :documento-de (:empresa doc)}))
   [:put-docs (merge {:into tabla} periodo)
-   (assoc (a-xt doc) :xt/id (xt-id tabla empresa doc) :empresa empresa)])
+   (cond-> (assoc (a-xt doc) :xt/id (xt-id tabla empresa doc) :empresa empresa)
+     decision (assoc :nc/decision decision))])
 
 (defn marca
   "La marca de la empresa: cuántas escrituras lleva. 0 si ninguna."
@@ -210,10 +219,10 @@
 (defn- compromiso-propio
   "Un compromiso se reemplaza por su nuevo estado, pero solo si el identificador
   no pertenece a otra empresa: de lo contrario la escritura pisaría sus datos."
-  [empresa compromiso]
+  [empresa compromiso decision]
   [[:sql "ASSERT NOT EXISTS (SELECT 1 FROM compromisos FOR ALL VALID_TIME WHERE _id = ? AND empresa <> ?)"
     [(:compromiso/id compromiso) empresa]]
-   (put :compromisos empresa compromiso)])
+   (put :compromisos empresa compromiso nil decision)])
 
 (defn- ajenos
   "Identificadores de compromisos que ya pertenecen a otra empresa."
@@ -229,14 +238,41 @@
 
 (defn- hecho-nuevo
   "Un hecho no se modifica (D16): si ya existe, la transacción completa falla."
-  [empresa hecho]
+  [empresa hecho decision]
   [[:sql "ASSERT NOT EXISTS (SELECT 1 FROM hechos FOR ALL VALID_TIME WHERE _id = ?)" [(:hecho/id hecho)]]
-   (put :hechos empresa hecho)])
+   (put :hechos empresa hecho nil decision)])
+
+(defn- decision-nueva
+  "La decisión se guarda una vez y no cambia: si ya existe, nada se escribe."
+  [empresa decision]
+  [[:sql "ASSERT NOT EXISTS (SELECT 1 FROM decisiones FOR ALL VALID_TIME WHERE _id = ?)" [(:decision/id decision)]]
+   (put :decisiones empresa decision)])
+
+(defn- exigir-decision!
+  "Toda escritura lleva la decisión de MARCO que la produjo (D82). Si escribe
+  algo, la decisión debe ser una ejecución, y declarar exactamente los hechos
+  que se escriben."
+  [{:keys [decision hechos compromisos saldos entidades]}]
+  (let [escribe? (some seq [hechos compromisos saldos entidades])
+        {:decision/keys [id resultado]} decision]
+    (cond
+      (not (and (uuid? id) (keyword? resultado)))
+      (error! :sin-decision "Toda escritura lleva la decisión de MARCO que la produjo (D82)" {})
+
+      (and escribe? (not= :ejecutado resultado))
+      (error! :decision-no-ejecutada "Solo una decisión ejecutada escribe cambios (D82)" {:resultado resultado})
+
+      (not= (set (map :hecho/id hechos)) (set (:decision/hechos decision)))
+      (error! :decision-inconsistente "La decisión no declara los hechos que se escriben (D82)"
+              {:declarados (:decision/hechos decision) :escritos (map :hecho/id hechos)}))))
 
 (defn escribir!
-  "Escribe en una sola transacción hechos, compromisos, saldos y entidades de una
-  empresa. Un hecho que ya existe aborta todo: nada queda escrito. Un compromiso,
-  saldo o entidad se reemplaza por su nuevo estado, y XTDB guarda el anterior.
+  "Escribe en una sola transacción la decisión de MARCO y lo que produjo: hechos,
+  compromisos, saldos y entidades de una empresa (D82). Sin decisión, o con una
+  que no es una ejecución, no escribe cambios. Una decisión de rechazo se
+  escribe sola. Un hecho que ya existe aborta todo: nada queda escrito. Un
+  compromiso, saldo o entidad se reemplaza por su nuevo estado, y XTDB guarda
+  el anterior.
 
   `:marca` es la marca de la empresa que vio quien preparó los cambios. Si otra
   escritura la movió desde entonces, nada se escribe y falla con :conflicto.
@@ -244,13 +280,16 @@
   `:registro` fija el tiempo de registro; solo sirve para cargar datos antiguos y
   para pruebas, y debe ser posterior al de la última transacción."
   ([alm empresa cambios] (escribir! alm empresa cambios {}))
-  ([{:keys [nodo] :as alm} empresa {:keys [hechos compromisos saldos entidades]} {:keys [registro] n :marca}]
+  ([{:keys [nodo] :as alm} empresa {:keys [decision hechos compromisos saldos entidades] :as cambios} {:keys [registro] n :marca}]
    (exigir-empresa! empresa)
-   (let [ops (concat (when n (marca-vista empresa n))
-                     (mapcat #(hecho-nuevo empresa %) hechos)
-                     (mapcat #(compromiso-propio empresa %) compromisos)
-                     (map #(put :saldos empresa %) saldos)
-                     (map #(put :entidades empresa %) entidades))]
+   (exigir-decision! cambios)
+   (let [d   (:decision/id decision)
+         ops (concat (when n (marca-vista empresa n))
+                     (decision-nueva empresa decision)
+                     (mapcat #(hecho-nuevo empresa % d) hechos)
+                     (mapcat #(compromiso-propio empresa % d) compromisos)
+                     (map #(put :saldos empresa % nil d) saldos)
+                     (map #(put :entidades empresa % nil d) entidades))]
      (try
        (let [{:keys [tx-id system-time]} (xt/execute-tx nodo (vec ops)
                                                         (cond-> {} registro (assoc :system-time registro)))]
@@ -266,6 +305,16 @@
            :else
            (error! :hecho-existente "Un hecho no se modifica: ya existe un hecho con ese identificador"
                    {:hechos (map :hecho/id hechos)})))))))
+
+(defn cargar-entidades!
+  "Carga inicial de datos maestros (productos, personas, bodegas...) sin pasar
+  por MARCO. Es lo único que se escribe sin decisión (D82): no son hechos,
+  compromisos ni saldos. Una entidad creada o cambiada por una operación pasa
+  por `escribir!`."
+  [{:keys [nodo]} empresa entidades]
+  (exigir-empresa! empresa)
+  (let [{:keys [tx-id system-time]} (xt/execute-tx nodo (mapv #(put :entidades empresa %) entidades))]
+    {:tx tx-id :registro (a-instante system-time)}))
 
 (defn publicar!
   "Publica una versión de una política, concepto o camino, vigente desde su

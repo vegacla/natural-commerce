@@ -34,7 +34,7 @@
   [t]
   (cond
     (tipos-simples t)                    t
-    (= :unidad t)                        :clave
+    (#{:unidad :keyword} t)              :clave
     (and (vector? t) (= :ref (first t))) :ref
     (vector? t)                          (tipo-normal (first t))
     :else                                :cualquiera))

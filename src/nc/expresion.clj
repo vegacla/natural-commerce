@@ -94,13 +94,14 @@
 
 (defn- campo
   "Busca el dato `nombre` en un documento: como clave simple, como clave del
-  sobre (:hecho/x, :compromiso/x) o dentro de sus datos. Devuelve [valor] o nil."
+  sobre (:hecho/x, :compromiso/x, :entidad/x) o dentro de sus datos. Devuelve
+  [valor] o nil."
   [doc nombre]
   (let [k (keyword nombre)]
     (some (fn [ruta]
             (let [x (get-in doc ruta ::nada)]
               (when (not= ::nada x) [x])))
-          [[k] [(keyword "hecho" nombre)] [(keyword "compromiso" nombre)]
+          [[k] [(keyword "hecho" nombre)] [(keyword "compromiso" nombre)] [(keyword "entidad" nombre)]
            [:hecho/datos k] [:compromiso/objeto k]])))
 
 (defn- referencia

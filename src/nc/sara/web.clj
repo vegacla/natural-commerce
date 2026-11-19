@@ -8,6 +8,7 @@
             [nc.almacen :as alm]
             [nc.ejecutor :as ej]
             [nc.ejemplo :as ejemplo]
+            [nc.estado :as est]
             [nc.sara :as sara])
   (:import (com.sun.net.httpserver HttpExchange HttpHandler HttpServer)
            (java.net InetSocketAddress URLDecoder URLEncoder)))
@@ -103,7 +104,7 @@ th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--borde);white
 
 (defn- inicio [ctx params]
   (let [estado (de-la-empresa ctx params)
-        ops    (sort-by key (get-in estado [:catalogo :contratos]))
+        ops    (est/operaciones estado)
         enlace (fn [[op _]] [:a {:href (url "/op" (assoc (select-keys params ["e" "actor"]) :op (subs (str op) 1)))}
                              (sara/titulo op)])]
     (pagina ctx params "Inicio"
@@ -161,7 +162,7 @@ th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--borde);white
 (defn- ejecutar [ctx {:strs [e actor op] :as params}]
   (let [estado (de-la-empresa ctx params)
         op     (clave op)
-        r      (ej/ejecutar! estado (clave actor) op (sara/entradas-de-texto estado op params) {:confirmado true})]
+        r      (ej/ejecutar! estado (clave actor) op (sara/entradas-de-texto estado op params) {:confirmado true :origen :sara})]
     (if-not (#{:ejecutado :consultado} (:estado r))
       (formulario ctx params)
       (pagina ctx params (sara/titulo op)

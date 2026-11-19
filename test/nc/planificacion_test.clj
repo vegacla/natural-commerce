@@ -9,11 +9,7 @@
             [nc.planificador :as p])
   (:import (java.util Date)))
 
-(use-fixtures :once
-  (fn [pruebas]
-    (let [a (alm/abrir)]
-      (try (binding [m/*alm* a] (pruebas))
-           (finally (alm/cerrar a))))))
+(use-fixtures :once m/con-almacen)
 
 (def abastecer-20
   {:operacion :compras/emitir-orden

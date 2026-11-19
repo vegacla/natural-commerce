@@ -1,0 +1,49 @@
+;; Canon de la capacidad Ventas (prototipo ampliado, D81).
+;;
+;; Etapa 7: el cliente y sus datos maestros. Crear, modificar y desactivar una
+;; entidad (M1). Las operaciones reciben además los campos propios que la
+;; empresa agrega al cliente (D3), porque declaran `:op/entidad`.
+
+{:entidades
+ [{:entidad/tipo   :cliente
+   :entidad/campos {:cliente/nombre :texto
+                    :cliente/cupo   :monto}
+   :entidad/extensible true}]
+
+ :contratos
+ [{:op/id        :ventas/alta-cliente
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entidad   :cliente
+   :op/entradas  [:map
+                  [:id :keyword]
+                  [:nombre :texto]
+                  [:cupo {:optional true} :monto]]
+   :op/salidas   {:cliente cliente/id}
+   :op/efectos
+   [[:crea-entidad :cliente {:id             entrada/id
+                             :cliente/nombre entrada/nombre
+                             :cliente/cupo   entrada/cupo}
+     :como cliente]]}
+
+  {:op/id        :ventas/modificar-cliente
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entidad   :cliente
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:nombre {:optional true} :texto]
+                  [:cupo {:optional true} :monto]]
+   :op/salidas   {:cliente entrada/cliente}
+   :op/efectos
+   [[:modifica-entidad entrada/cliente {:cliente/nombre entrada/nombre
+                                        :cliente/cupo   entrada/cupo}]]}
+
+  {:op/id        :ventas/desactivar-cliente
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]]
+   :op/salidas   {:cliente entrada/cliente}
+   :op/efectos
+   [[:desactiva-entidad entrada/cliente]]}]}

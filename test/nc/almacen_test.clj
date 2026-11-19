@@ -2,7 +2,8 @@
   "Etapa 2: hechos y compromisos sobre XTDB. Escritura, lectura y consulta en
   fecha pasada. Cada prueba usa su propia empresa sobre un mismo nodo."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [nc.almacen :as alm])
+            [nc.almacen :as alm]
+            [nc.prueba :as p])
   (:import (java.util Date)))
 
 (def ^:dynamic *alm* nil)
@@ -48,10 +49,10 @@
   (let [e  (empresa)
         h  (random-uuid)
         c  (random-uuid)
-        _  (alm/escribir! *alm* e {:hechos      [(orden h)]
-                                   :compromisos [(recepcion-pendiente c h [:cantidad 20 :un])]})]
+        _  (alm/escribir! *alm* e (p/con-decision {:hechos      [(orden h)]
+                                   :compromisos [(recepcion-pendiente c h [:cantidad 20 :un])]}))]
     (testing "los datos vuelven tal como se escribieron: unidades, claves y fechas"
-      (is (= (assoc (orden h) :empresa e) (alm/leer *alm* e :hechos h)))
+      (is (= (assoc (orden h) :empresa e) (dissoc (alm/leer *alm* e :hechos h) :nc/decision)))
       (is (= [:cantidad 20 :un] (get-in (alm/leer *alm* e :compromisos c) [:compromiso/saldo :cantidad])))
       (is (instance? Date (:hecho/en (alm/leer *alm* e :hechos h)))))
     (testing "se busca por cualquier campo"
@@ -63,11 +64,11 @@
   (let [e (empresa)
         h (random-uuid)
         c (random-uuid)]
-    (alm/escribir! *alm* e {:hechos [(orden h)]})
+    (alm/escribir! *alm* e (p/con-decision {:hechos [(orden h)]}))
     (testing "registrar de nuevo el mismo hecho falla (D16)"
       (is (= :hecho-existente
-             (error-de #(alm/escribir! *alm* e {:hechos      [(assoc-in (orden h) [:hecho/datos :cantidad] [:cantidad 99 :un])]
-                                                :compromisos [(recepcion-pendiente c h [:cantidad 99 :un])]}))))
+             (error-de #(alm/escribir! *alm* e (p/con-decision {:hechos      [(assoc-in (orden h) [:hecho/datos :cantidad] [:cantidad 99 :un])]
+                                                :compromisos [(recepcion-pendiente c h [:cantidad 99 :un])]})))))
       (is (= [:cantidad 20 :un] (get-in (alm/leer *alm* e :hechos h) [:hecho/datos :cantidad]))))
     (testing "y la transacción completa se descarta: el compromiso no quedó escrito"
       (is (nil? (alm/leer *alm* e :compromisos c))))))
@@ -76,9 +77,9 @@
   (let [e  (empresa)
         h  (random-uuid)
         c  (random-uuid)
-        r1 (:registro (alm/escribir! *alm* e {:hechos      [(orden h)]
-                                              :compromisos [(recepcion-pendiente c h [:cantidad 20 :un])]}))
-        r2 (:registro (alm/escribir! *alm* e {:compromisos [(recepcion-pendiente c h [:cantidad 8 :un])]}))
+        r1 (:registro (alm/escribir! *alm* e (p/con-decision {:hechos      [(orden h)]
+                                              :compromisos [(recepcion-pendiente c h [:cantidad 20 :un])]})))
+        r2 (:registro (alm/escribir! *alm* e (p/con-decision {:compromisos [(recepcion-pendiente c h [:cantidad 8 :un])]})))
         saldo (fn [opts] (get-in (alm/leer *alm* e :compromisos c opts) [:compromiso/saldo :cantidad]))]
     (testing "hoy se ve el saldo reducido por la recepción"
       (is (= [:cantidad 8 :un] (saldo {}))))
@@ -133,8 +134,8 @@
                  :saldo/clave    clave
                  :saldo/valor    {:cantidad cantidad :costo [:monto 50520 :CLP]}
                  :saldo/reglas   {:empresa-b/valorizacion 1}})]
-    (alm/escribir! *alm* e {:saldos [(saldo [:cantidad 12 :un])]})
-    (alm/escribir! *alm* e {:saldos [(saldo [:cantidad 20 :un])]})
+    (alm/escribir! *alm* e (p/con-decision {:saldos [(saldo [:cantidad 12 :un])]}))
+    (alm/escribir! *alm* e (p/con-decision {:saldos [(saldo [:cantidad 20 :un])]}))
     (testing "un saldo se identifica por concepto y clave, y guarda la versión de su regla (D48)"
       (let [s (alm/leer *alm* e :saldos [:inventario/existencia clave])]
         (is (= [:cantidad 20 :un] (get-in s [:saldo/valor :cantidad])))
@@ -145,7 +146,7 @@
   (let [a (empresa)
         b (empresa)
         h (random-uuid)]
-    (alm/escribir! *alm* b {:hechos [(orden h)]})
+    (alm/escribir! *alm* b (p/con-decision {:hechos [(orden h)]}))
     (alm/publicar! *alm* b :politicas (compra-formal 3 (dias-desde-hoy -1)))
     (testing "una empresa no ve los datos de otra (D22)"
       (is (nil? (alm/leer *alm* a :hechos h)))

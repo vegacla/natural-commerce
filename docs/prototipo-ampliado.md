@@ -124,7 +124,7 @@ Continúan la numeración de `prototipo-minimo.md`. La Empresa A es el comercio 
 
 ## 6. Etapas
 
-7. **Bitácora, plataforma y maestros.** Primero la bitácora y la garantía estructural (E27): las etapas siguientes corren la verificación de invariantes al final de cada escenario. Luego plan contratado y entidades (E10, E11). Las pruebas de ventas se escriben aquí, antes que sus contratos (E25).
+7. **Bitácora, plataforma y maestros.** Hecha (ver `mediciones.md`). Primero la bitácora y la garantía estructural (E27): las etapas siguientes corren la verificación de invariantes al final de cada escenario. Luego plan contratado y entidades (E10, E11). Las pruebas de ventas se escriben aquí, antes que sus contratos (E25).
 8. **Formas que faltan.** Fija, sugiere, limita e inicia; conflictos (E12, E19, E21).
 9. **Verbos y tiempo.** Revertir, transferir y reducir varios; calendario; MARCO por iniciativa propia; período contable (E13, E15, E16, E17, E18).
 10. **Legal y contabilidad.** Política legal, folios, asiento y sustitución de implementaciones (E14, E22).

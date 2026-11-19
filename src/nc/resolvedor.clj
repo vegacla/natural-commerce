@@ -6,7 +6,11 @@
   El contrato decide si las entradas son válidas (P5, D65); las políticas, qué
   más hace falta. Formas que se evalúan en esta etapa: exige, prohíbe, permite
   y exime. Sugiere, fija, limita e inicia se agregan con los escenarios que las
-  usan."
+  usan.
+
+  Una operación fuera del plan de la empresa está prohibida, y también lo está
+  un requisito que solo se cumple con una operación fuera del plan: nada queda
+  bloqueado en silencio (D36, D83)."
   (:require [clojure.string :as str]
             [malli.core :as m]
             [malli.error :as me]
@@ -35,8 +39,13 @@
 (defn- problema-de-entrada [estado forma valor]
   (if-let [error (m/explain (esq/esquema-de-datos forma) valor)]
     (str/join "; " (flatten [(me/humanize error)]))
-    (when (and (vector? forma) (= :ref (first forma)) (not (existe? estado (second forma) valor)))
-      (str "No existe " (pr-str valor) " como " (second forma)))))
+    (when (and (vector? forma) (= :ref (first forma)))
+      (cond
+        (not (existe? estado (second forma) valor))
+        (str "No existe " (pr-str valor) " como " (second forma))
+
+        (false? (:entidad/activa (est/leer estado valor)))
+        (str (pr-str valor) " está desactivado")))))
 
 (defn- revisar-entradas
   "Separa las entradas válidas de los requisitos que deja el contrato: una
@@ -119,6 +128,10 @@
            (cond
              (>= cumplen n) {:estado :satisfecho}
              falta          {:estado :indeterminado :pide [(dato falta)]}
+             (not (and via (est/habilitada? estado via)))
+             {:estado :prohibido
+              :razon  (str (:politica/id p) " exige " hecho ", pero "
+                           (if via (str via " no está en el plan contratado") "ninguna operación lo registra"))}
              :else          (merge {:estado :pendiente :faltan (- n cumplen)}
                                    (quien-puede estado ctx via)))
            (when-let [k (entrega estado contrato via)] {:entrega k}))))
@@ -168,9 +181,13 @@
         ps       (est/politicas estado op caso)
         exigidos (mapcat #(requisitos-de-politica estado ctx contrato %) ps)
         {:keys [quien puede]} (permiso ctx ps)
+        en-plan? (est/habilitada? estado op)
         reglas   (into {} (map (juxt :politica/id :politica/version)) ps)
         entregan (set (keep :entrega exigidos))
-        todos    (vec (concat requisitos
+        todos    (vec (concat (when-not en-plan?
+                                [{:id :plan :estado :prohibido
+                                  :razon (str "La capacidad " (:op/capacidad contrato) " no está en el plan contratado")}])
+                              requisitos
                               exigidos
                               (when-not puede
                                 [{:id :permiso :estado :prohibido :quien quien

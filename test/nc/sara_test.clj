@@ -4,6 +4,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [nc.almacen :as alm]
+            [nc.bitacora :as bit]
             [nc.ejecutor :as ej]
             [nc.ejemplo :as ejemplo]
             [nc.sara :as sara]
@@ -87,3 +88,7 @@
               (map :texto (:avisos f)))))
   (is (= "Luis" (sara/nombre (b) :persona/luis)))
   (is (= "compras/orden" (sara/nombre (b) :compras/orden))))
+
+(deftest los-datos-de-ejemplo-cumplen-los-invariantes
+  (doseq [[nombre estado] *empresas*]
+    (is (= [] (bit/verificar (:almacen estado) (:empresa estado))) (str nombre))))

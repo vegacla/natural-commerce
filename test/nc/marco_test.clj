@@ -4,6 +4,7 @@
   Cada prueba usa su propia empresa sobre un mismo nodo XTDB."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [nc.almacen :as alm]
+            [nc.bitacora :as bit]
             [nc.catalogo :as cat]
             [nc.ejecutor :as ej]
             [nc.estado :as est]
@@ -12,13 +13,28 @@
 
 (def ^:dynamic *alm* nil)
 
-(use-fixtures :once
-  (fn [pruebas]
-    (let [a (alm/abrir)]
-      (try (binding [*alm* a] (pruebas))
-           (finally (alm/cerrar a))))))
+(def empresas
+  "Las empresas creadas por `empresa!` en esta corrida: al terminar, cada una
+  debe cumplir los invariantes de la bitácora (D82)."
+  (atom #{}))
 
-(def canon (cat/leer "canon/compras.edn"))
+(defn verificar-todas!
+  "Verifica los invariantes de la bitácora en cada empresa creada."
+  []
+  (doseq [e @empresas]
+    (is (= [] (bit/verificar *alm* e)) (str "invariantes de la bitácora en " e)))
+  (reset! empresas #{}))
+
+(defn con-almacen
+  "Fixture: un almacén en memoria para las pruebas, y los invariantes de la
+  bitácora verificados al final."
+  [pruebas]
+  (let [a (alm/abrir)]
+    (try (binding [*alm* a] (pruebas) (verificar-todas!))
+         (finally (alm/cerrar a)))))
+
+(use-fixtures :once con-almacen)
+
 (def empresa-b (cat/leer "empresas/empresa-b.edn"))
 
 (defn dias-desde-hoy [n] (Date. (+ (System/currentTimeMillis) (* n 24 60 60 1000))))
@@ -38,10 +54,11 @@
   políticas se publican vigentes desde hace un mes: las pruebas usan el reloj real."
   [config]
   (let [e (keyword "empresa" (str (random-uuid)))]
-    (alm/escribir! *alm* e {:entidades entidades})
+    (swap! empresas conj e)
+    (alm/cargar-entidades! *alm* e entidades)
     (doseq [p (:politicas config)]
       (alm/publicar! *alm* e :politicas (assoc p :politica/rige-desde (dias-desde-hoy -30))))
-    (est/abrir *alm* (cat/armar canon config) e)))
+    (est/abrir *alm* (cat/de-empresa config) e)))
 
 (defn ejecutar! [empresa actor op entradas]
   (ej/ejecutar! empresa actor op entradas {:confirmado true}))

@@ -6,11 +6,7 @@
             [nc.ejecutor :as ej]
             [nc.marco-test :as m]))
 
-(use-fixtures :once
-  (fn [pruebas]
-    (let [a (alm/abrir)]
-      (try (binding [m/*alm* a] (pruebas))
-           (finally (alm/cerrar a))))))
+(use-fixtures :once m/con-almacen)
 
 (defn- error-de [f]
   (try (f) nil (catch clojure.lang.ExceptionInfo e (:nc/error (ex-data e)))))

@@ -62,6 +62,7 @@
                                t)
           :fecha    (Date/from (.toInstant (.atStartOfDay (LocalDate/parse t) ZoneOffset/UTC)))
           :ref      (edn/read-string t)
+          :clave    (keyword (str/replace t #"^:" ""))
           :booleano (= "true" t)
           t)
         (catch Exception _ t)))))
@@ -72,7 +73,7 @@
   (cond
     (nil? x)                        ""
     (string? x)                     x
-    (= :ref (val/tipo-normal tipo)) (pr-str x)
+    (#{:ref :clave} (val/tipo-normal tipo)) (pr-str x)
     (v/valor? x)                    (str (v/numero x) " " (name (v/unidad x)))
     :else                           (mostrar x)))
 
@@ -185,7 +186,7 @@
 
 ;; --- Tablas ----------------------------------------------------------------------
 
-(def ^:private ocultas #{:empresa :hecho/reglas :compromiso/reglas :hecho/causa :saldo/reglas})
+(def ^:private ocultas #{:empresa :hecho/reglas :compromiso/reglas :hecho/causa :saldo/reglas :nc/decision})
 
 (def ^:private abiertas
   "Mapas que se abren en columnas propias, con el prefijo de su título. El saldo
@@ -228,7 +229,7 @@
   esas entradas ya puestas: así se encadena un paso con el siguiente."
   [estado salidas]
   (let [ids (into {} (filter (comp (some-fn uuid? keyword?) val)) salidas)]
-    (vec (for [[op c] (sort-by key (get-in estado [:catalogo :contratos]))
+    (vec (for [[op c] (est/operaciones estado)
                :let [comunes (select-keys ids (map first (esq/campos-ordenados (:op/entradas c))))]
                :when (seq comunes)]
            {:operacion op :titulo (titulo op) :entradas comunes}))))

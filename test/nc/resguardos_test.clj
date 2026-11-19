@@ -5,7 +5,8 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
-            [nc.almacen :as alm]))
+            [nc.almacen :as alm]
+            [nc.prueba :as p]))
 
 (def ^:dynamic *alm* nil)
 
@@ -31,6 +32,16 @@
                       (str f))]
       (is (empty? culpables)))))
 
+;; --- D82: solo el ejecutor escribe por MARCO -------------------------------------
+
+(deftest solo-el-ejecutor-escribe
+  (testing "ningún módulo de src, salvo el ejecutor, llama a alm/escribir!"
+    (let [culpables (for [f (fuentes)
+                          :when (not (#{"almacen.clj" "ejecutor.clj"} (.getName f)))
+                          :when (re-find #"escribir!" (slurp f))]
+                      (str f))]
+      (is (empty? culpables)))))
+
 ;; --- 2 y 3. La empresa es obligatoria y no se pisa -----------------------------
 
 (def ^:private funciones-con-empresa
@@ -41,6 +52,7 @@
    'historia  (fn [a e] (alm/historia a e :hechos :x))
    'marca     (fn [a e] (alm/marca a e))
    'escribir! (fn [a e] (alm/escribir! a e {}))
+   'cargar-entidades! (fn [a e] (alm/cargar-entidades! a e []))
    'publicar! (fn [a e] (alm/publicar! a e :politicas {:politica/id :x :politica/version 1 :politica/rige-desde #inst "2026-01-01"}))
    'retirar!  (fn [a e] (alm/retirar! a e :politicas :x))
    'vigente   (fn [a e] (alm/vigente a e :politicas :x))})
@@ -64,14 +76,14 @@
 (deftest no-se-escribe-un-documento-de-otra-empresa
   (let [compromiso {:compromiso/id (random-uuid) :compromiso/tipo :compras/recepcion-pendiente
                     :compromiso/estado :activo :empresa :empresa/b}]
-    (is (= :documento-ajeno (error-de #(alm/escribir! *alm* :empresa/a {:compromisos [compromiso]}))))))
+    (is (= :documento-ajeno (error-de #(alm/escribir! *alm* :empresa/a (p/con-decision {:compromisos [compromiso]})))))))
 
 (deftest no-se-pisa-un-compromiso-ajeno
   (let [id (random-uuid)
         mio {:compromiso/id id :compromiso/tipo :compras/recepcion-pendiente :compromiso/estado :activo}]
-    (alm/escribir! *alm* :empresa/b {:compromisos [mio]})
+    (alm/escribir! *alm* :empresa/b (p/con-decision {:compromisos [mio]}))
     (is (= :documento-ajeno
-           (error-de #(alm/escribir! *alm* :empresa/a {:compromisos [(assoc mio :compromiso/estado :extinguido)]}))))
+           (error-de #(alm/escribir! *alm* :empresa/a (p/con-decision {:compromisos [(assoc mio :compromiso/estado :extinguido)]})))))
     (testing "el compromiso de B quedó intacto y A no lo ve"
       (is (= :activo (:compromiso/estado (first (alm/buscar *alm* :empresa/b :compromisos {:compromiso/id id})))))
       (is (empty? (alm/buscar *alm* :empresa/a :compromisos {:compromiso/id id}))))))
@@ -86,9 +98,9 @@
         hid-a (random-uuid) hid-b (random-uuid)
         politica (fn [v] {:politica/id :compartida/politica :politica/version v
                           :politica/rige-desde #inst "2026-01-01T00:00:00Z"})]
-    (alm/escribir! *alm* :empresa/a {:hechos [(hecho hid-a)]
-                                     :compromisos [{:compromiso/id id-c :compromiso/tipo tipo :compromiso/estado :activo}]})
-    (alm/escribir! *alm* :empresa/b {:hechos [(hecho hid-b)]})
+    (alm/escribir! *alm* :empresa/a (p/con-decision {:hechos [(hecho hid-a)]
+                                     :compromisos [{:compromiso/id id-c :compromiso/tipo tipo :compromiso/estado :activo}]}))
+    (alm/escribir! *alm* :empresa/b (p/con-decision {:hechos [(hecho hid-b)]}))
     (alm/publicar! *alm* :empresa/a :politicas (politica 1))
     (alm/publicar! *alm* :empresa/b :politicas (politica 7))
     (testing "mismo identificador de dominio, datos distintos por empresa"
