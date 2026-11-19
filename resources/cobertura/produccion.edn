@@ -1,0 +1,165 @@
+;; Cobertura del análisis (etapa 13): las operaciones de producción. Ver
+;; resources/cobertura/compras.edn.
+
+{:entidades
+ [{:entidad/tipo   :lista-materiales
+   :entidad/campos {:lista/producto   [:ref :producto]
+                    :lista/componente [:ref :producto]
+                    :lista/cantidad   :int}}
+
+  {:entidad/tipo   :ruta
+   :entidad/campos {:ruta/producto    [:ref :producto]
+                    :ruta/operaciones :cantidad}}]
+
+ :tipos-hecho
+ [{:tipo-hecho/id      :produccion/orden-fabricacion
+   :tipo-hecho/datos   [:map
+                        [:lista [:ref :lista-materiales]]
+                        [:ruta [:ref :ruta]]
+                        [:cantidad :cantidad]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :produccion/consumo
+   :tipo-hecho/datos   [:map
+                        [:orden [:ref :produccion/orden-fabricacion]]
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]
+                        [:costo-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/bodega}
+                         :suma  {:cantidad [:* -1 hecho/cantidad]
+                                 :costo    [:* -1 hecho/cantidad hecho/costo-unitario]}}]}
+
+  {:tipo-hecho/id      :produccion/avance
+   :tipo-hecho/datos   [:map [:orden [:ref :produccion/orden-fabricacion]] [:operaciones :cantidad]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :produccion/recepcion-terminado
+   :tipo-hecho/datos   [:map
+                        [:orden [:ref :produccion/orden-fabricacion]]
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]
+                        [:costo-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/bodega}
+                         :suma  {:cantidad hecho/cantidad
+                                 :costo    [:* hecho/cantidad hecho/costo-unitario]}}]}
+
+  {:tipo-hecho/id      :produccion/liquidacion
+   :tipo-hecho/datos   [:map [:orden [:ref :produccion/orden-fabricacion]] [:variacion :monto]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :contratos
+ [{:op/id        :produccion/alta-lista-materiales
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entidad   :lista-materiales
+   :op/entradas  [:map [:id :keyword] [:producto [:ref :producto]] [:componente [:ref :producto]] [:cantidad :int]]
+   :op/salidas   {:lista lista/id}
+   :op/efectos   [[:crea-entidad :lista-materiales {:id entrada/id :lista/producto entrada/producto
+                                                    :lista/componente entrada/componente :lista/cantidad entrada/cantidad}
+                   :como lista]]}
+
+  {:op/id        :produccion/modificar-lista-materiales
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entidad   :lista-materiales
+   :op/entradas  [:map [:lista [:ref :lista-materiales]] [:cantidad :int]]
+   :op/salidas   {:lista entrada/lista}
+   :op/efectos   [[:modifica-entidad entrada/lista {:lista/cantidad entrada/cantidad}]]}
+
+  {:op/id        :produccion/alta-ruta
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entidad   :ruta
+   :op/entradas  [:map [:id :keyword] [:producto [:ref :producto]] [:operaciones :cantidad]]
+   :op/salidas   {:ruta ruta/id}
+   :op/efectos   [[:crea-entidad :ruta {:id entrada/id :ruta/producto entrada/producto :ruta/operaciones entrada/operaciones}
+                   :como ruta]]}
+
+  {:op/id        :produccion/modificar-ruta
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entidad   :ruta
+   :op/entradas  [:map [:ruta [:ref :ruta]] [:operaciones :cantidad]]
+   :op/salidas   {:ruta entrada/ruta}
+   :op/efectos   [[:modifica-entidad entrada/ruta {:ruta/operaciones entrada/operaciones}]]}
+
+  ;; La orden de fabricación abre lo que la empresa se debe a sí misma (T2): el
+  ;; producto por fabricar, los componentes por consumir y las operaciones por
+  ;; hacer. Cada paso siguiente reduce el suyo.
+  {:op/id        :produccion/liberar-orden
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entradas  [:map [:lista [:ref :lista-materiales]] [:ruta [:ref :ruta]] [:cantidad :cantidad]]
+   :op/salidas   {:orden orden/id}
+   :op/efectos
+   [[:registra-hecho :produccion/orden-fabricacion entrada :como orden]
+    [:abre-compromiso {:tipo     :produccion/fabricacion-pendiente
+                       :deudor   empresa
+                       :acreedor empresa
+                       :origen   orden/id
+                       :objeto   {:producto [:-> entrada/lista :lista/producto] :cantidad entrada/cantidad}}]
+    [:abre-compromiso {:tipo     :produccion/consumo-pendiente
+                       :deudor   empresa
+                       :acreedor empresa
+                       :origen   orden/id
+                       :objeto   {:producto [:-> entrada/lista :lista/componente]
+                                  :cantidad [:* entrada/cantidad [:-> entrada/lista :lista/cantidad]]}}]
+    [:abre-compromiso {:tipo     :produccion/operaciones-pendientes
+                       :deudor   empresa
+                       :acreedor empresa
+                       :origen   orden/id
+                       :objeto   {:operaciones [:-> entrada/ruta :ruta/operaciones]}}]]}
+
+  {:op/id        :produccion/consumir-componentes
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entradas  [:map [:orden [:ref :produccion/orden-fabricacion]] [:bodega [:ref :bodega]] [:cantidad :cantidad]]
+   :op/salidas   {:consumo consumo/id}
+   :op/efectos
+   [[:registra-hecho :produccion/consumo
+     {:orden entrada/orden :bodega entrada/bodega :cantidad entrada/cantidad
+      :producto [:-> entrada/orden :hecho/datos :lista :lista/componente]
+      :costo-unitario [:inventario/costo-unitario {:producto [:-> entrada/orden :hecho/datos :lista :lista/componente]
+                                                   :bodega entrada/bodega :cantidad entrada/cantidad :metodo nil}]}
+     :como consumo]
+    [:reduce-compromiso [:compromisos {:tipo :produccion/consumo-pendiente :origen entrada/orden :estado :activo}]
+                        {:cantidad entrada/cantidad}]]}
+
+  {:op/id        :produccion/notificar-avance
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entradas  [:map [:orden [:ref :produccion/orden-fabricacion]] [:operaciones :cantidad]]
+   :op/salidas   {:avance avance/id}
+   :op/efectos
+   [[:registra-hecho :produccion/avance entrada :como avance]
+    [:reduce-compromiso [:compromisos {:tipo :produccion/operaciones-pendientes :origen entrada/orden :estado :activo}]
+                        {:operaciones entrada/operaciones}]]}
+
+  {:op/id        :produccion/recibir-terminado
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entradas  [:map [:orden [:ref :produccion/orden-fabricacion]] [:bodega [:ref :bodega]]
+                  [:cantidad :cantidad] [:costo-unitario :monto]]
+   :op/salidas   {:recepcion recepcion/id}
+   :op/efectos
+   [[:registra-hecho :produccion/recepcion-terminado
+     {:orden entrada/orden :bodega entrada/bodega :cantidad entrada/cantidad :costo-unitario entrada/costo-unitario
+      :producto [:-> entrada/orden :hecho/datos :lista :lista/producto]}
+     :como recepcion]
+    [:reduce-compromiso [:compromisos {:tipo :produccion/fabricacion-pendiente :origen entrada/orden :estado :activo}]
+                        {:cantidad entrada/cantidad}]]}
+
+  {:op/id        :produccion/liquidar-orden
+   :op/capacidad :produccion
+   :op/tipo      :efecto
+   :op/entradas  [:map [:orden [:ref :produccion/orden-fabricacion]] [:variacion :monto]]
+   :op/salidas   {:liquidacion liquidacion/id}
+   :op/efectos
+   [[:registra-hecho :produccion/liquidacion entrada :como liquidacion]
+    [:extingue-compromiso [:compromisos {:origen entrada/orden :estado :activo}] :liquidacion]]}]}

@@ -53,6 +53,22 @@
     (let [fuente (slurp (io/file "src/nc/sara/lenguaje.clj"))]
       (is (not (re-find #"ej/(aplicar!|preparar)|alm/" fuente))))))
 
+;; --- E26: leer por identificador no recorre los datos de otras empresas -----------
+
+(deftest leer-va-por-la-llave-primaria
+  (testing "XTDB solo indexa :xt/id: filtrar por otra columna recorre la tabla con los
+  datos de todas las empresas, y una empresa se hace más lenta con los datos de otra"
+    (let [consultas (atom [])
+          q         xtdb.api/q]
+      (with-redefs [xtdb.api/q (fn [nodo consulta & mas]
+                                 (swap! consultas conj consulta)
+                                 (apply q nodo consulta mas))]
+        (doseq [tabla [:hechos :compromisos :entidades :decisiones :politicas]]
+          (alm/leer *alm* :empresa/a tabla (random-uuid)))
+        (alm/leer *alm* :empresa/a :saldos [:inventario/existencia {:producto :P-100}]))
+      (is (= 6 (count @consultas)))
+      (is (every? #(re-find #":xt/id" (pr-str (first %))) @consultas)))))
+
 ;; --- 2 y 3. La empresa es obligatoria y no se pisa -----------------------------
 
 (def ^:private funciones-con-empresa

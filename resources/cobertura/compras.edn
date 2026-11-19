@@ -1,0 +1,160 @@
+;; Cobertura del análisis (etapa 13, sección 7 del prototipo ampliado): las
+;; operaciones de compras del análisis que el canon no tiene, escritas como
+;; contratos con los primitivos, verbos y formas que ya existen. No son canon de
+;; la plataforma: miden si la notación las expresa. Se cargan solo en la prueba
+;; de cobertura.
+
+{:tipos-hecho
+ [{:tipo-hecho/id      :compras/pedido-cotizacion
+   :tipo-hecho/datos   [:map
+                        [:solicitud [:ref :compras/necesidad]]
+                        [:proveedor [:ref :proveedor]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/contrato-marco
+   :tipo-hecho/datos   [:map
+                        [:proveedor [:ref :proveedor]]
+                        [:producto [:ref :producto]]
+                        [:cantidad :cantidad]
+                        [:precio-unitario :monto]
+                        [:hasta :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/devolucion
+   :tipo-hecho/datos   [:map
+                        [:orden [:ref :compras/orden]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto [:-> hecho/orden :hecho/datos :producto] :bodega hecho/bodega}
+                         :suma  {:cantidad [:* -1 hecho/cantidad]
+                                 :costo    [:* -1 hecho/cantidad [:-> hecho/orden :hecho/datos :precio-unitario]]}}]}
+
+  {:tipo-hecho/id      :compras/acuse
+   :tipo-hecho/datos   [:map
+                        [:factura [:ref :compras/factura]]
+                        [:resultado :keyword]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/cierre-orden
+   :tipo-hecho/datos   [:map [:orden [:ref :compras/orden]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :compras/nota-credito-proveedor
+   :tipo-hecho/datos   [:map
+                        [:orden [:ref :compras/orden]]
+                        [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :contratos
+ [{:op/id        :compras/alta-proveedor
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entidad   :proveedor
+   :op/entradas  [:map [:id :keyword] [:nombre :texto]]
+   :op/salidas   {:proveedor proveedor/id}
+   :op/efectos   [[:crea-entidad :proveedor {:id entrada/id :proveedor/nombre entrada/nombre} :como proveedor]]}
+
+  {:op/id        :compras/modificar-proveedor
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entidad   :proveedor
+   :op/entradas  [:map [:proveedor [:ref :proveedor]] [:nombre :texto]]
+   :op/salidas   {:proveedor entrada/proveedor}
+   :op/efectos   [[:modifica-entidad entrada/proveedor {:proveedor/nombre entrada/nombre}]]}
+
+  {:op/id        :compras/solicitar-cotizacion
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map [:solicitud [:ref :compras/necesidad]] [:proveedor [:ref :proveedor]]]
+   :op/salidas   {:pedido pedido/id}
+   :op/efectos   [[:registra-hecho :compras/pedido-cotizacion entrada :como pedido]]}
+
+  ;; Un contrato marco es un compromiso del proveedor por una cantidad, del que
+  ;; cada liberación descuenta (T14).
+  {:op/id        :compras/firmar-contrato-marco
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:proveedor [:ref :proveedor]]
+                  [:producto [:ref :producto]]
+                  [:cantidad :cantidad]
+                  [:precio-unitario :monto]
+                  [:hasta :fecha]]
+   :op/salidas   {:marco marco/id}
+   :op/efectos
+   [[:registra-hecho :compras/contrato-marco entrada :como contrato]
+    [:abre-compromiso {:tipo     :compras/marco-vigente
+                       :deudor   entrada/proveedor
+                       :acreedor empresa
+                       :vence    entrada/hasta
+                       :origen   contrato/id
+                       :objeto   {:producto entrada/producto :precio-unitario entrada/precio-unitario}
+                       :saldo    {:cantidad entrada/cantidad}}
+     :como marco]]}
+
+  ;; La liberación es una orden: la misma recepción, factura y pago la siguen.
+  {:op/id        :compras/liberar-contra-marco
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map [:marco [:ref :compras/marco-vigente]] [:cantidad :cantidad]]
+   :op/salidas   {:orden orden/id}
+   :op/efectos
+   [[:registra-hecho :compras/orden {:proveedor       [:-> entrada/marco :compromiso/deudor]
+                                     :producto        [:-> entrada/marco :compromiso/objeto :producto]
+                                     :cantidad        entrada/cantidad
+                                     :precio-unitario [:-> entrada/marco :compromiso/objeto :precio-unitario]}
+     :como orden]
+    [:reduce-compromiso entrada/marco {:cantidad entrada/cantidad}]
+    [:abre-compromiso {:tipo     :compras/recepcion-pendiente
+                       :deudor   [:-> entrada/marco :compromiso/deudor]
+                       :acreedor empresa
+                       :origen   orden/id
+                       :objeto   {:producto [:-> entrada/marco :compromiso/objeto :producto] :cantidad entrada/cantidad}}]
+    [:abre-compromiso {:tipo     :compras/pago-contra-factura
+                       :deudor   empresa
+                       :acreedor [:-> entrada/marco :compromiso/deudor]
+                       :estado   :latente
+                       :origen   orden/id
+                       :objeto   {:monto [:* entrada/cantidad [:-> entrada/marco :compromiso/objeto :precio-unitario]]}}]]}
+
+  {:op/id        :compras/devolver-a-proveedor
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map [:orden [:ref :compras/orden]] [:bodega [:ref :bodega]] [:cantidad :cantidad]]
+   :op/salidas   {:devolucion devolucion/id}
+   :op/efectos
+   [[:registra-hecho :compras/devolucion entrada :como devolucion]
+    [:abre-compromiso {:tipo     :compras/nota-credito-por-recibir
+                       :deudor   [:-> entrada/orden :hecho/datos :proveedor]
+                       :acreedor empresa
+                       :origen   devolucion/id
+                       :objeto   {:monto [:* entrada/cantidad [:-> entrada/orden :hecho/datos :precio-unitario]]}}]]}
+
+  {:op/id        :compras/acusar-dte
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map [:factura [:ref :compras/factura]] [:resultado :keyword]]
+   :op/salidas   {:acuse acuse/id}
+   :op/efectos   [[:registra-hecho :compras/acuse entrada :como acuse]]}
+
+  {:op/id        :compras/cerrar-orden
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map [:orden [:ref :compras/orden]]]
+   :op/salidas   {:cierre cierre/id}
+   :op/efectos
+   [[:registra-hecho :compras/cierre-orden entrada :como cierre]
+    [:extingue-compromiso [:compromisos {:tipo :compras/recepcion-pendiente :origen entrada/orden :estado :activo}]
+                          :cierre]]}
+
+  {:op/id        :compras/registrar-nota-credito-proveedor
+   :op/capacidad :compras
+   :op/tipo      :efecto
+   :op/entradas  [:map [:orden [:ref :compras/orden]] [:monto :monto]]
+   :op/salidas   {:nota nota/id}
+   :op/efectos
+   [[:registra-hecho :compras/nota-credito-proveedor entrada :como nota]
+    [:reduce-compromiso [:compromisos {:tipo :compras/pago-contra-factura :origen entrada/orden :estado :activo}]
+                        {:monto entrada/monto}]]}]}

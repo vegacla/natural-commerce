@@ -1,0 +1,70 @@
+;; Cobertura del análisis (etapa 13): las operaciones de personal. Ver
+;; resources/cobertura/compras.edn. Remuneraciones no es un dominio completo
+;; (fuera de alcance): solo se prueba que la notación las expresa.
+
+{:tipos-hecho
+ [{:tipo-hecho/id      :personal/contrato-trabajo
+   :tipo-hecho/datos   [:map [:trabajador [:ref :persona]] [:sueldo :monto] [:desde :fecha] [:vacaciones :cantidad]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :personal/liquidacion
+   :tipo-hecho/datos   [:map [:contrato [:ref :personal/contrato-vigente]] [:fecha :fecha] [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :personal/vacaciones
+   :tipo-hecho/datos   [:map [:saldo [:ref :personal/vacaciones-por-tomar]] [:dias :cantidad]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :contratos
+ [;; Como el arriendo (etapa 9): un compromiso con calendario que genera cada
+  ;; mes lo que se paga (T14), y las vacaciones como un compromiso interno.
+  {:op/id        :personal/firmar-contrato
+   :op/capacidad :personal
+   :op/tipo      :efecto
+   :op/entradas  [:map [:trabajador [:ref :persona]] [:sueldo :monto] [:desde :fecha] [:vacaciones :cantidad]]
+   :op/salidas   {:contrato vigente/id :vacaciones dias/id}
+   :op/efectos
+   [[:registra-hecho :personal/contrato-trabajo entrada :como contrato]
+    [:abre-compromiso {:tipo       :personal/contrato-vigente
+                       :deudor     empresa
+                       :acreedor   entrada/trabajador
+                       :vence      entrada/desde
+                       :origen     contrato/id
+                       :calendario {:cada [:meses 1] :monto entrada/sueldo}}
+     :como vigente]
+    [:abre-compromiso {:tipo     :personal/vacaciones-por-tomar
+                       :deudor   empresa
+                       :acreedor entrada/trabajador
+                       :origen   contrato/id
+                       :objeto   {:dias entrada/vacaciones}}
+     :como dias]]}
+
+  ;; Lo ejecuta MARCO al vencer cada mes (T5), como devengar una cuota.
+  {:op/id        :personal/liquidar-sueldo
+   :op/capacidad :personal
+   :op/tipo      :efecto
+   :op/entradas  [:map [:contrato [:ref :personal/contrato-vigente]]]
+   :op/salidas   {:liquidacion liquidacion/id}
+   :op/efectos
+   [[:registra-hecho :personal/liquidacion {:contrato entrada/contrato
+                                            :fecha    [:-> entrada/contrato :compromiso/vence]
+                                            :monto    [:-> entrada/contrato :compromiso/calendario :monto]}
+     :como liquidacion]
+    [:abre-compromiso {:tipo     :personal/sueldo-por-pagar
+                       :deudor   empresa
+                       :acreedor [:-> entrada/contrato :compromiso/acreedor]
+                       :vence    [:-> entrada/contrato :compromiso/vence]
+                       :origen   liquidacion/id
+                       :objeto   {:monto [:-> entrada/contrato :compromiso/calendario :monto]}}]
+    [:modifica-compromiso entrada/contrato
+                          {:vence [:+meses [:-> entrada/contrato :compromiso/vence]
+                                           [:-> entrada/contrato :compromiso/calendario :cada]]}]]}
+
+  {:op/id        :personal/registrar-vacaciones
+   :op/capacidad :personal
+   :op/tipo      :efecto
+   :op/entradas  [:map [:saldo [:ref :personal/vacaciones-por-tomar]] [:dias :cantidad]]
+   :op/salidas   {:vacaciones vacaciones/id}
+   :op/efectos
+   [[:registra-hecho :personal/vacaciones entrada :como vacaciones]
+    [:reduce-compromiso entrada/saldo {:dias entrada/dias}]]}]}

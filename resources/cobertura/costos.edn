@@ -1,0 +1,82 @@
+;; Cobertura del análisis (etapa 13): las operaciones de costos. Ver
+;; resources/cobertura/compras.edn.
+
+{:entidades
+ [{:entidad/tipo   :centro-costo
+   :entidad/campos {:centro/nombre :texto}}]
+
+ :tipos-hecho
+ [{:tipo-hecho/id      :costos/imputacion
+   :tipo-hecho/datos   [:map [:centro [:ref :centro-costo]] [:monto :monto] [:glosa :texto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :costos/centro :clave {:centro hecho/centro} :suma {:monto hecho/monto}}]}
+
+  {:tipo-hecho/id      :costos/reparto
+   :tipo-hecho/datos   [:map [:desde [:ref :centro-costo]] [:hacia [:ref :centro-costo]] [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :costos/centro :clave {:centro hecho/desde} :suma {:monto [:* -1 hecho/monto]}}
+                        {:saldo :costos/centro :clave {:centro hecho/hacia} :suma {:monto hecho/monto}}]}
+
+  {:tipo-hecho/id      :costos/costo-estandar
+   :tipo-hecho/datos   [:map [:producto [:ref :producto]] [:costo :monto] [:desde :fecha]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :contratos
+ [{:op/id        :costos/alta-centro
+   :op/capacidad :costos
+   :op/tipo      :efecto
+   :op/entidad   :centro-costo
+   :op/entradas  [:map [:id :keyword] [:nombre :texto]]
+   :op/salidas   {:centro centro/id}
+   :op/efectos   [[:crea-entidad :centro-costo {:id entrada/id :centro/nombre entrada/nombre} :como centro]]}
+
+  {:op/id        :costos/modificar-centro
+   :op/capacidad :costos
+   :op/tipo      :efecto
+   :op/entidad   :centro-costo
+   :op/entradas  [:map [:centro [:ref :centro-costo]] [:nombre :texto]]
+   :op/salidas   {:centro entrada/centro}
+   :op/efectos   [[:modifica-entidad entrada/centro {:centro/nombre entrada/nombre}]]}
+
+  {:op/id        :costos/desactivar-centro
+   :op/capacidad :costos
+   :op/tipo      :efecto
+   :op/entradas  [:map [:centro [:ref :centro-costo]]]
+   :op/salidas   {:centro entrada/centro}
+   :op/efectos   [[:desactiva-entidad entrada/centro]]}
+
+  {:op/id        :costos/imputar
+   :op/capacidad :costos
+   :op/tipo      :efecto
+   :op/entradas  [:map [:centro [:ref :centro-costo]] [:monto :monto] [:glosa :texto]]
+   :op/salidas   {:imputacion imputacion/id}
+   :op/efectos   [[:registra-hecho :costos/imputacion entrada :como imputacion]]}
+
+  ;; Lo ejecuta MARCO al cierre de cada período con una política "inicia" (T5).
+  {:op/id        :costos/repartir
+   :op/capacidad :costos
+   :op/tipo      :efecto
+   :op/entradas  [:map [:desde [:ref :centro-costo]] [:hacia [:ref :centro-costo]] [:monto :monto]]
+   :op/salidas   {:reparto reparto/id}
+   :op/efectos   [[:registra-hecho :costos/reparto entrada :como reparto]]}
+
+  ;; El costo estándar rige desde una fecha (T13): una política "fija" lo lee.
+  {:op/id        :costos/fijar-costo-estandar
+   :op/capacidad :costos
+   :op/tipo      :efecto
+   :op/entradas  [:map [:producto [:ref :producto]] [:costo :monto] [:desde :fecha]]
+   :op/salidas   {:estandar estandar/id}
+   :op/efectos   [[:registra-hecho :costos/costo-estandar entrada :como estandar]]}
+
+  {:op/id        :costos/analizar-rentabilidad
+   :op/capacidad :costos
+   :op/tipo      :consulta
+   :op/entradas  [:map [:producto [:ref :producto]]]
+   :op/salidas   {:ventas [:suma [:si [:= [:-> cada :hecho/datos :producto] entrada/producto]
+                                  [:-> cada :hecho/datos :monto]
+                                  0]
+                             [:hechos {:tipo :ventas/boleta}]]
+                  :costo  [:suma [:si [:= [:-> cada :hecho/datos :producto] entrada/producto]
+                                  [:* [:-> cada :hecho/datos :cantidad] [:-> cada :hecho/datos :costo-unitario]]
+                                  0]
+                             [:hechos {:tipo :ventas/despacho}]]}}]}

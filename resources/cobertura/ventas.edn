@@ -1,0 +1,129 @@
+;; Cobertura del análisis (etapa 13): las operaciones de ventas que el canon no
+;; tiene. Ver resources/cobertura/compras.edn.
+
+{:tipos-hecho
+ [{:tipo-hecho/id      :ventas/cotizacion
+   :tipo-hecho/datos   [:map
+                        [:cliente [:ref :cliente]]
+                        [:producto [:ref :producto]]
+                        [:cantidad :cantidad]
+                        [:precio-unitario :monto]
+                        [:vence :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/nota-debito
+   :tipo-hecho/datos   [:map
+                        [:factura [:ref :ventas/factura]]
+                        [:cliente [:ref :cliente]]
+                        [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/devolucion
+   :tipo-hecho/datos   [:map
+                        [:cliente [:ref :cliente]]
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]
+                        [:precio-unitario :monto]
+                        [:costo-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/bodega}
+                         :suma  {:cantidad hecho/cantidad
+                                 :costo    [:* hecho/cantidad hecho/costo-unitario]}}]}
+
+  {:tipo-hecho/id      :ventas/anticipo
+   :tipo-hecho/datos   [:map [:cliente [:ref :cliente]] [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :ventas/comision
+   :tipo-hecho/datos   [:map [:vendedor [:ref :persona]] [:base :monto] [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :contratos
+ [;; Una cotización es una oferta de la empresa al cliente: un compromiso
+  ;; latente que el pedido activaría o el vencimiento extinguiría (T1).
+  {:op/id        :ventas/emitir-cotizacion
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:producto [:ref :producto]]
+                  [:cantidad :cantidad]
+                  [:precio-unitario :monto]
+                  [:vence :fecha]]
+   :op/salidas   {:cotizacion vigente/id}
+   :op/efectos
+   [[:registra-hecho :ventas/cotizacion entrada :como cotizacion]
+    [:abre-compromiso {:tipo     :ventas/cotizacion-vigente
+                       :deudor   empresa
+                       :acreedor entrada/cliente
+                       :estado   :latente
+                       :vence    entrada/vence
+                       :origen   cotizacion/id
+                       :objeto   {:producto entrada/producto :precio-unitario entrada/precio-unitario}
+                       :saldo    {:cantidad entrada/cantidad}}
+     :como vigente]]}
+
+  {:op/id        :ventas/emitir-nota-debito
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:factura [:ref :ventas/factura]] [:cliente [:ref :cliente]] [:monto :monto]]
+   :op/salidas   {:nota nota/id :cobro cobro/id}
+   :op/efectos
+   [[:registra-hecho :ventas/nota-debito entrada :como nota]
+    [:abre-compromiso {:tipo     :ventas/por-cobrar
+                       :deudor   entrada/cliente
+                       :acreedor empresa
+                       :origen   nota/id
+                       :objeto   {:monto entrada/monto}}
+     :como cobro]]}
+
+  ;; La devolución no revierte la venta (puede ser parcial): entra la mercadería
+  ;; y queda por emitir la nota de crédito.
+  {:op/id        :ventas/recibir-devolucion
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:producto [:ref :producto]]
+                  [:bodega [:ref :bodega]]
+                  [:cantidad :cantidad]
+                  [:precio-unitario :monto]
+                  [:costo-unitario :monto]]
+   :op/salidas   {:devolucion devolucion/id}
+   :op/efectos
+   [[:registra-hecho :ventas/devolucion entrada :como devolucion]
+    [:abre-compromiso {:tipo     :ventas/nota-credito-por-emitir
+                       :deudor   empresa
+                       :acreedor entrada/cliente
+                       :origen   devolucion/id
+                       :objeto   {:monto [:* entrada/cantidad entrada/precio-unitario]}}]]}
+
+  {:op/id        :ventas/recibir-anticipo
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:cliente [:ref :cliente]] [:monto :monto]]
+   :op/salidas   {:anticipo saldo/id}
+   :op/efectos
+   [[:registra-hecho :ventas/anticipo entrada :como anticipo]
+    [:abre-compromiso {:tipo     :ventas/anticipo-por-aplicar
+                       :deudor   empresa
+                       :acreedor entrada/cliente
+                       :origen   anticipo/id
+                       :objeto   {:monto entrada/monto}}
+     :como saldo]]}
+
+  ;; El monto de la comisión lo calcula una política "fija" sobre la base.
+  {:op/id        :ventas/registrar-comision
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:vendedor [:ref :persona]] [:base :monto] [:monto :monto]]
+   :op/salidas   {:comision comision/id}
+   :op/efectos
+   [[:registra-hecho :ventas/comision entrada :como comision]
+    [:abre-compromiso {:tipo     :ventas/comision-por-pagar
+                       :deudor   empresa
+                       :acreedor entrada/vendedor
+                       :origen   comision/id
+                       :objeto   {:monto entrada/monto}}]]}]}

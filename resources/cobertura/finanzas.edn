@@ -1,0 +1,245 @@
+;; Cobertura del análisis (etapa 13): las operaciones de finanzas, contabilidad y
+;; tributario que el canon no tiene. Ver resources/cobertura/compras.edn.
+;; Lo tributario no está verificado (D42).
+
+{:entidades
+ [{:entidad/tipo   :cuenta
+   :entidad/campos {:cuenta/nombre     :texto
+                    :cuenta/naturaleza :keyword}}
+
+  {:entidad/tipo   :activo
+   :entidad/campos {:activo/nombre :texto
+                    :activo/valor  :monto
+                    :activo/estado :keyword}}
+
+  {:entidad/tipo   :presupuesto
+   :entidad/campos {:presupuesto/cuenta [:ref :cuenta]
+                    :presupuesto/monto  :monto}}]
+
+ :tipos-hecho
+ [{:tipo-hecho/id      :contabilidad/asiento
+   :tipo-hecho/datos   [:map
+                        [:glosa :texto]
+                        [:asiento [:map-of :keyword :any]]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :contabilidad/cuenta
+                         :cada  hecho/asiento
+                         :clave {:cuenta cada/cuenta}
+                         :suma  {:debe cada/debe :haber cada/haber}}]}
+
+  {:tipo-hecho/id      :finanzas/conciliacion
+   :tipo-hecho/datos   [:map [:cuenta [:ref :cuenta]] [:saldo-banco :monto] [:fecha :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/castigo
+   :tipo-hecho/datos   [:map [:cobro [:ref :ventas/por-cobrar]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/reajuste
+   :tipo-hecho/datos   [:map [:indice :keyword] [:monto :monto] [:fecha :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :contabilidad/provision
+   :tipo-hecho/datos   [:map [:glosa :texto] [:monto :monto] [:fecha :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :contabilidad/reverso
+   :tipo-hecho/datos   [:map [:provision [:ref :contabilidad/provision]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :contabilidad/reapertura
+   :tipo-hecho/datos   [:map [:periodo [:ref :periodo]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :tributario/declaracion-mensual
+   :tipo-hecho/datos   [:map [:mes :fecha] [:debito :monto] [:credito :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :tributario/cuadratura
+   :tipo-hecho/datos   [:map [:mes :fecha] [:diferencia :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/alta-activo
+   :tipo-hecho/datos   [:map [:activo [:ref :activo]] [:valor :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/depreciacion
+   :tipo-hecho/datos   [:map [:activo [:ref :activo]] [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/baja-activo
+   :tipo-hecho/datos   [:map [:activo [:ref :activo]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/aprobacion-presupuesto
+   :tipo-hecho/datos   [:map [:presupuesto [:ref :presupuesto]] [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  {:tipo-hecho/id      :finanzas/compromiso-presupuestario
+   :tipo-hecho/datos   [:map [:presupuesto [:ref :presupuesto]] [:orden [:ref :compras/orden]] [:monto :monto]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :contratos
+ [{:op/id        :contabilidad/alta-cuenta
+   :op/capacidad :contabilidad
+   :op/tipo      :efecto
+   :op/entidad   :cuenta
+   :op/entradas  [:map [:id :keyword] [:nombre :texto] [:naturaleza :keyword]]
+   :op/salidas   {:cuenta cuenta/id}
+   :op/efectos   [[:crea-entidad :cuenta {:id entrada/id :cuenta/nombre entrada/nombre
+                                          :cuenta/naturaleza entrada/naturaleza}
+                   :como cuenta]]}
+
+  {:op/id        :contabilidad/modificar-cuenta
+   :op/capacidad :contabilidad
+   :op/tipo      :efecto
+   :op/entidad   :cuenta
+   :op/entradas  [:map [:cuenta [:ref :cuenta]] [:nombre :texto]]
+   :op/salidas   {:cuenta entrada/cuenta}
+   :op/efectos   [[:modifica-entidad entrada/cuenta {:cuenta/nombre entrada/nombre}]]}
+
+  {:op/id        :contabilidad/desactivar-cuenta
+   :op/capacidad :contabilidad
+   :op/tipo      :efecto
+   :op/entradas  [:map [:cuenta [:ref :cuenta]]]
+   :op/salidas   {:cuenta entrada/cuenta}
+   :op/efectos   [[:desactiva-entidad entrada/cuenta]]}
+
+  ;; Dos líneas, como el asiento de la factura (etapa 10): cada una mueve el
+  ;; saldo de su cuenta.
+  {:op/id        :contabilidad/registrar-asiento
+   :op/capacidad :contabilidad
+   :op/tipo      :efecto
+   :op/entradas  [:map [:glosa :texto] [:debe [:ref :cuenta]] [:haber [:ref :cuenta]] [:monto :monto]]
+   :op/salidas   {:asiento asiento/id}
+   :op/efectos
+   [[:registra-hecho :contabilidad/asiento
+     {:glosa   entrada/glosa
+      :asiento {:debe  {:cuenta entrada/debe :debe entrada/monto :haber 0}
+                :haber {:cuenta entrada/haber :debe 0 :haber entrada/monto}}}
+     :como asiento]]}
+
+  {:op/id        :finanzas/conciliar-cartola
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:cuenta [:ref :cuenta]] [:saldo-banco :monto] [:fecha :fecha]]
+   :op/salidas   {:conciliacion conciliacion/id}
+   :op/efectos   [[:registra-hecho :finanzas/conciliacion entrada :como conciliacion]]}
+
+  {:op/id        :finanzas/castigar-deuda
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:cobro [:ref :ventas/por-cobrar]]]
+   :op/salidas   {:castigo castigo/id}
+   :op/efectos
+   [[:registra-hecho :finanzas/castigo entrada :como castigo]
+    [:extingue-compromiso entrada/cobro :castigo]]}
+
+  ;; Lo ejecuta MARCO por calendario con una política "inicia" (T5).
+  {:op/id        :finanzas/reajustar
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:indice :keyword] [:monto :monto] [:fecha :fecha]]
+   :op/salidas   {:reajuste reajuste/id}
+   :op/efectos   [[:registra-hecho :finanzas/reajuste entrada :como reajuste]]}
+
+  {:op/id        :contabilidad/registrar-provision
+   :op/capacidad :contabilidad
+   :op/tipo      :efecto
+   :op/entradas  [:map [:glosa :texto] [:monto :monto] [:fecha :fecha]]
+   :op/salidas   {:provision provision/id}
+   :op/efectos   [[:registra-hecho :contabilidad/provision entrada :como provision]]}
+
+  {:op/id        :contabilidad/reversar-provision
+   :op/capacidad :contabilidad
+   :op/tipo      :efecto
+   :op/entradas  [:map [:provision [:ref :contabilidad/provision]]]
+   :op/salidas   {:reverso reverso/id}
+   :op/efectos
+   [[:registra-hecho :contabilidad/reverso entrada :como reverso]
+    [:revierte-hecho entrada/provision]]}
+
+  {:op/id        :contabilidad/reabrir-periodo
+   :op/capacidad :contabilidad
+   :op/tipo      :efecto
+   :op/entradas  [:map [:periodo [:ref :periodo]]]
+   :op/salidas   {:reapertura reapertura/id}
+   :op/efectos
+   [[:registra-hecho :contabilidad/reapertura entrada :como reapertura]
+    [:modifica-entidad entrada/periodo {:periodo/estado :abierto}]]}
+
+  {:op/id        :tributario/preparar-declaracion-mensual
+   :op/capacidad :tributario
+   :op/tipo      :efecto
+   :op/entradas  [:map [:mes :fecha] [:debito :monto] [:credito :monto]]
+   :op/salidas   {:declaracion declaracion/id :impuesto impuesto/id}
+   :op/efectos
+   [[:registra-hecho :tributario/declaracion-mensual entrada :como declaracion]
+    [:abre-compromiso {:tipo     :tributario/impuesto-por-pagar
+                       :deudor   empresa
+                       :acreedor :fisco
+                       :origen   declaracion/id
+                       :objeto   {:monto [:- entrada/debito entrada/credito]}}
+     :como impuesto]]}
+
+  {:op/id        :tributario/cuadrar-registro
+   :op/capacidad :tributario
+   :op/tipo      :efecto
+   :op/entradas  [:map [:mes :fecha] [:diferencia :monto]]
+   :op/salidas   {:cuadratura cuadratura/id}
+   :op/efectos   [[:registra-hecho :tributario/cuadratura entrada :como cuadratura]]}
+
+  {:op/id        :finanzas/alta-activo
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entidad   :activo
+   :op/entradas  [:map [:id :keyword] [:nombre :texto] [:valor :monto]]
+   :op/salidas   {:activo activo/id}
+   :op/efectos
+   [[:crea-entidad :activo {:id entrada/id :activo/nombre entrada/nombre :activo/valor entrada/valor
+                            :activo/estado :en-uso}
+     :como activo]
+    [:registra-hecho :finanzas/alta-activo {:activo activo/id :valor entrada/valor}]]}
+
+  {:op/id        :finanzas/depreciar
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:activo [:ref :activo]] [:monto :monto]]
+   :op/salidas   {:depreciacion depreciacion/id}
+   :op/efectos   [[:registra-hecho :finanzas/depreciacion entrada :como depreciacion]]}
+
+  {:op/id        :finanzas/dar-de-baja-activo
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:activo [:ref :activo]]]
+   :op/salidas   {:baja baja/id}
+   :op/efectos
+   [[:registra-hecho :finanzas/baja-activo entrada :como baja]
+    [:modifica-entidad entrada/activo {:activo/estado :dado-de-baja}]]}
+
+  {:op/id        :finanzas/aprobar-presupuesto
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entidad   :presupuesto
+   :op/entradas  [:map [:id :keyword] [:cuenta [:ref :cuenta]] [:monto :monto]]
+   :op/salidas   {:presupuesto presupuesto/id}
+   :op/efectos
+   [[:crea-entidad :presupuesto {:id entrada/id :presupuesto/cuenta entrada/cuenta :presupuesto/monto entrada/monto}
+     :como presupuesto]
+    [:registra-hecho :finanzas/aprobacion-presupuesto {:presupuesto presupuesto/id :monto entrada/monto}]]}
+
+  ;; Lo que queda del presupuesto es un concepto (presupuesto menos lo
+  ;; comprometido), y una política "limita" lo usa (T3, H3).
+  {:op/id        :finanzas/comprometer-presupuesto
+   :op/capacidad :finanzas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:presupuesto [:ref :presupuesto]] [:orden [:ref :compras/orden]] [:monto :monto]]
+   :op/salidas   {:compromiso comprometido/id}
+   :op/efectos
+   [[:registra-hecho :finanzas/compromiso-presupuestario entrada :como registro]
+    [:abre-compromiso {:tipo     :finanzas/presupuesto-comprometido
+                       :deudor   empresa
+                       :acreedor empresa
+                       :origen   registro/id
+                       :objeto   {:presupuesto entrada/presupuesto :monto entrada/monto}}
+     :como comprometido]]}]}

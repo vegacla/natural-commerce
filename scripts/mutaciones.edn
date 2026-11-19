@@ -116,8 +116,8 @@
   :poner "true"}
  {:nombre "un saldo se lee por su clave"
   :archivo "src/nc/almacen.clj"
-  :buscar "{:xt/id (xt-id :saldos empresa {:saldo/concepto (first id) :saldo/clave (second id)})}"
-  :poner "{:saldo/concepto (first id) :saldo/clave (second id)}"}
+  :buscar "(first (buscar alm empresa tabla {:xt/id (xt-id tabla empresa doc)} opts))"
+  :poner "(first (buscar alm empresa tabla (if (= :saldos tabla) doc {:xt/id (xt-id tabla empresa doc)}) opts))"}
  {:nombre "el asiento no mueve las cuentas"
   :archivo "src/nc/ejecutor.clj"
   :buscar "(if (contains? mueve :cada)"
@@ -207,4 +207,8 @@
  {:nombre "una consulta que lee el caso se da por lista sin caso"
   :archivo "src/nc/resolvedor.clj"
   :buscar "(requisito-caso contrato caso)"
-  :poner "nil"}]
+  :poner "nil"}
+ {:nombre "leer filtra por el identificador de dominio y recorre la tabla de todas las empresas"
+  :archivo "src/nc/almacen.clj"
+  :buscar "(first (buscar alm empresa tabla {:xt/id (xt-id tabla empresa doc)} opts))"
+  :poner "(first (buscar alm empresa tabla (if (= :saldos tabla) {:xt/id (xt-id tabla empresa doc)} doc) opts))"}]

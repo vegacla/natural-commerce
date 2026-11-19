@@ -186,13 +186,15 @@
   "Un documento por su identificador de dominio, o nil."
   ([alm empresa tabla id] (leer alm empresa tabla id {}))
   ([alm empresa tabla id opts]
-   ;; Un saldo se busca por su identificador, no por su clave: XTDB no compara
-   ;; bien un mapa cuando la columna guarda claves de formas distintas
-   ;; (knowledge/xtdb-comportamientos.md).
-   (let [filtro (if (= :saldos tabla)
-                  {:xt/id (xt-id :saldos empresa {:saldo/concepto (first id) :saldo/clave (second id)})}
-                  {(tablas tabla) id})]
-     (first (buscar alm empresa tabla filtro opts)))))
+   ;; Por la llave primaria (`:xt/id`), no por el identificador de dominio: XTDB
+   ;; no indexa otras columnas, y filtrar por una recorre la tabla con los datos
+   ;; de todas las empresas (E26). La empresa sigue en el filtro (D80). Un saldo
+   ;; además no se puede buscar por su clave: XTDB no compara bien un mapa cuando
+   ;; la columna guarda claves de formas distintas (knowledge/xtdb-comportamientos.md).
+   (let [doc (if (= :saldos tabla)
+               {:saldo/concepto (first id) :saldo/clave (second id)}
+               {(tablas tabla) id})]
+     (first (buscar alm empresa tabla {:xt/id (xt-id tabla empresa doc)} opts)))))
 
 (defn historia
   "Todas las versiones de un documento, con sus dos tiempos, de la más nueva a la

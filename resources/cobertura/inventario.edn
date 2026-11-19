@@ -1,0 +1,117 @@
+;; Cobertura del análisis (etapa 13): las operaciones de inventario que el canon
+;; no tiene. Ver resources/cobertura/compras.edn.
+
+{:entidades
+ [{:entidad/tipo   :lote
+   :entidad/campos {:lote/producto [:ref :producto]
+                    :lote/estado   :keyword}}]
+
+ :tipos-hecho
+ [{:tipo-hecho/id      :inventario/traspaso
+   :tipo-hecho/datos   [:map
+                        [:producto [:ref :producto]]
+                        [:desde [:ref :bodega]]
+                        [:hacia [:ref :bodega]]
+                        [:cantidad :cantidad]
+                        [:costo-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/desde}
+                         :suma  {:cantidad [:* -1 hecho/cantidad]
+                                 :costo    [:* -1 hecho/cantidad hecho/costo-unitario]}}
+                        {:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/hacia}
+                         :suma  {:cantidad hecho/cantidad
+                                 :costo    [:* hecho/cantidad hecho/costo-unitario]}}]}
+
+  {:tipo-hecho/id      :inventario/ajuste
+   :tipo-hecho/datos   [:map
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:diferencia :cantidad]
+                        [:costo-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/bodega}
+                         :suma  {:cantidad hecho/diferencia
+                                 :costo    [:* hecho/diferencia hecho/costo-unitario]}}]}
+
+  {:tipo-hecho/id      :inventario/consumo
+   :tipo-hecho/datos   [:map
+                        [:producto [:ref :producto]]
+                        [:bodega [:ref :bodega]]
+                        [:cantidad :cantidad]
+                        [:costo-unitario :monto]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :clave {:producto hecho/producto :bodega hecho/bodega}
+                         :suma  {:cantidad [:* -1 hecho/cantidad]
+                                 :costo    [:* -1 hecho/cantidad hecho/costo-unitario]}}]}]
+
+ :contratos
+ [{:op/id        :inventario/alta-producto
+   :op/capacidad :inventario
+   :op/tipo      :efecto
+   :op/entidad   :producto
+   :op/entradas  [:map [:id :keyword] [:codigo :texto] [:nombre :texto] [:unidad :unidad]]
+   :op/salidas   {:producto producto/id}
+   :op/efectos   [[:crea-entidad :producto {:id entrada/id :producto/codigo entrada/codigo
+                                            :producto/nombre entrada/nombre :producto/unidad entrada/unidad}
+                   :como producto]]}
+
+  {:op/id        :inventario/modificar-producto
+   :op/capacidad :inventario
+   :op/tipo      :efecto
+   :op/entidad   :producto
+   :op/entradas  [:map [:producto [:ref :producto]] [:nombre :texto]]
+   :op/salidas   {:producto entrada/producto}
+   :op/efectos   [[:modifica-entidad entrada/producto {:producto/nombre entrada/nombre}]]}
+
+  ;; El costo de lo que sale lo da el mismo cálculo que el despacho (D38).
+  {:op/id        :inventario/traspasar
+   :op/capacidad :inventario
+   :op/tipo      :efecto
+   :op/entradas  [:map [:producto [:ref :producto]] [:desde [:ref :bodega]] [:hacia [:ref :bodega]] [:cantidad :cantidad]]
+   :op/salidas   {:traspaso traspaso/id}
+   :op/efectos
+   [[:registra-hecho :inventario/traspaso
+     {:producto entrada/producto :desde entrada/desde :hacia entrada/hacia :cantidad entrada/cantidad
+      :costo-unitario [:inventario/costo-unitario {:producto entrada/producto :bodega entrada/desde
+                                                   :cantidad entrada/cantidad :metodo nil}]}
+     :como traspaso]]}
+
+  {:op/id        :inventario/ajustar
+   :op/capacidad :inventario
+   :op/tipo      :efecto
+   :op/entradas  [:map [:producto [:ref :producto]] [:bodega [:ref :bodega]] [:diferencia :cantidad] [:costo-unitario :monto]]
+   :op/salidas   {:ajuste ajuste/id}
+   :op/efectos   [[:registra-hecho :inventario/ajuste entrada :como ajuste]]}
+
+  {:op/id        :inventario/consumir
+   :op/capacidad :inventario
+   :op/tipo      :efecto
+   :op/entradas  [:map [:producto [:ref :producto]] [:bodega [:ref :bodega]] [:cantidad :cantidad]]
+   :op/salidas   {:consumo consumo/id}
+   :op/efectos
+   [[:registra-hecho :inventario/consumo
+     {:producto entrada/producto :bodega entrada/bodega :cantidad entrada/cantidad
+      :costo-unitario [:inventario/costo-unitario {:producto entrada/producto :bodega entrada/bodega
+                                                   :cantidad entrada/cantidad :metodo nil}]}
+     :como consumo]]}
+
+  {:op/id        :inventario/alta-lote
+   :op/capacidad :inventario
+   :op/tipo      :efecto
+   :op/entradas  [:map [:id :keyword] [:producto [:ref :producto]]]
+   :op/salidas   {:lote lote/id}
+   :op/efectos   [[:crea-entidad :lote {:id entrada/id :lote/producto entrada/producto :lote/estado :disponible}
+                   :como lote]]}
+
+  ;; Un lote en cuarentena es un estado de la entidad; una política "prohíbe"
+  ;; impide despacharlo.
+  {:op/id        :inventario/poner-en-cuarentena
+   :op/capacidad :inventario
+   :op/tipo      :efecto
+   :op/entradas  [:map [:lote [:ref :lote]]]
+   :op/salidas   {:lote entrada/lote}
+   :op/efectos   [[:modifica-entidad entrada/lote {:lote/estado :cuarentena}]]}]}

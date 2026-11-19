@@ -7,7 +7,7 @@ Solo descubrimientos: lo que se observó en el sistema y no era evidente. No van
 | Archivo | Tema |
 |---|---|
 | `xtdb-bases-multiples.md` | `ATTACH DATABASE` en XTDB 2.2: cómo funciona y sus límites (evaluado para D80). |
-| `xtdb-comportamientos.md` | XTDB 2.2: sus límites, la semántica que hay que respetar y nuestros errores al usarlo, cada uno con cómo se verificó. |
+| `xtdb-comportamientos.md` | XTDB 2.2: sus límites, la semántica que hay que respetar (también qué columnas están indexadas) y nuestros errores al usarlo, cada uno con cómo se verificó. |
 | `xtdb-bitemporalidad.md` | Validez y registro: qué entrega XTDB sin diseño adicional. |
 | `xtdb-respaldo.md` | Respaldo y restauración en disco local, y cómo forzar un bloque. |
 | `nucleo.md` | Comportamientos no evidentes del núcleo de MARCO. |

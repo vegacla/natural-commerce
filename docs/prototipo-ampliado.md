@@ -129,8 +129,8 @@ Continúan la numeración de `prototipo-minimo.md`. La Empresa A es el comercio 
 9. **Verbos y tiempo.** Hecha (ver `mediciones.md`). Revertir, transferir y reducir varios; calendario; MARCO por iniciativa propia; período contable (E13, E15, E16, E17, E18).
 10. **Legal y contabilidad.** Hecha (ver `mediciones.md`). Política legal, folios, asiento y sustitución de implementaciones (E14, E22).
 11. **Composición en profundidad.** Hecha (ver `mediciones.md`). Deducción en profundidad, estado deseado y necesidades de muchas a muchas (E20; D97, D98, D99).
-12. **SARA con LLM y complejidad visible.** Hecha con un modelo guionado (ver `mediciones.md`); la corrida con Claude queda pendiente de credenciales (E23, E24; D100).
-13. **Volumen y cobertura** (E26 y la sección 7).
+12. **SARA con LLM y complejidad visible.** Hecha (ver `mediciones.md`), con un modelo guionado y con Claude Haiku 5.5 (E23, E24; D100, D101).
+13. **Volumen y cobertura.** Hecha (ver `mediciones.md`). Un año de dos empresas sin que una se haga más lenta con los datos de la otra (E26, D102), y las 74 operaciones del análisis expresadas sin primitivos, verbos ni formas nuevos (sección 7, D103). E25 no se hizo en ninguna etapa.
 
 ## 7. Cobertura del análisis
 

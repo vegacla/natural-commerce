@@ -612,3 +612,80 @@ Elecciones de operación con el prompt corregido: 4 de 5 frases con herramienta,
 - **Varía entre corridas.** La misma frase dio herramienta en una corrida y texto en otra. Cinco frases no alcanzan para una tasa de error; la medición de la sección 8 necesita una muestra mayor.
 - Costo: 20 llamadas a Haiku 5.5 en total.
 
+
+## Etapa 13: volumen y cobertura (2026-11-19)
+
+Escenario E26 y la sección 7 del prototipo ampliado.
+
+### Líneas del núcleo
+
+| Archivo | Qué cambió | Líneas |
+|---|---|---|
+| `src/nc/almacen.clj` | `leer` va por la llave primaria (D102) | +3 |
+| `src/nc/resolvedor.clj` | Una consulta que lee el caso no está lista sin caso (D101, encontrado en E23 con Claude) | +18 |
+
+Ninguna línea por la cobertura: los 57 contratos nuevos son datos. Pruebas: 3.369 líneas; 3 pruebas nuevas (E26, cobertura y un resguardo). Las 84 pruebas, con 758 comprobaciones, pasan.
+
+### E26: un año de dos empresas
+
+A, sin políticas: 20 ventas en mesón al día y una compra simple a la semana, 300 días: 18.204 hechos. B, con sus políticas (compra formal sobre $500.000, segregación, recibir hasta lo pendiente): lo mismo, más una venta a crédito al día (pedido, despacho, factura y cobro) y una compra formal al mes (solicitud, dos ofertas, aprobación de otra persona, orden, recepción, factura y pago): 19.500 hechos. Todo por `ejecutar!`, con bitácora; XTDB en memoria. Mediana de 25 corridas, tras 25 de calentamiento, en milisegundos:
+
+| Momento | Hechos | Resolver una venta | Resolver una orden | Consulta de estado |
+|---|---|---|---|---|
+| A vacía | 4 | 20,5 | 16,5 | 45,7 |
+| B vacía | 4 | 15,7 | 28,1 | 22,3 |
+| A con su año | 18.204 | 4,2 | 7,7 | 26,0 |
+| B vacía, con el año de A | 4 | 3,3 | 12,5 | 24,6 |
+| A con su año y el de B | 18.204 | 2,0 | 2,1 | 13,5 |
+| B con su año | 19.500 | 2,7 | 6,1 | 13,6 |
+
+Las primeras filas pagan la compilación de la JVM; lo que importa es que ninguna fila crece con los datos de la otra empresa. Cargar el año: A 88 s, B 107 s (unos 14 ms por operación, con bitácora). Verificar los invariantes de la bitácora de B: 2,3 s.
+
+**Antes de D102** la misma prueba falló: la consulta de estado de B vacía pasó de 16 a 40 ms cuando A cargó su año, y la de A de 34 a 58 ms cuando B cargó el suyo; la carga de B tardó 159 s. `leer` buscaba por el identificador de dominio (`:hecho/id`), que XTDB no indexa, y cada lectura recorría la tabla con los datos de todas las empresas. Por la llave primaria, el tiempo dejó de depender de la otra empresa y la carga bajó un tercio.
+
+El año completo corre con `NC_VOLUMEN` (unos 4 minutos); en la suite corre con tres días y sin aserciones de tiempo, que con tan pocos datos son ruido.
+
+### Cobertura del análisis (sección 7)
+
+Las 74 operaciones de `docs/analisis/operaciones.csv` se expresan sin primitivos, verbos ni formas nuevos (D103):
+
+| Cómo | Filas |
+|---|---|
+| Contratos del canon | 19 |
+| Contratos nuevos en `resources/cobertura/` (57 contratos) | 47 |
+| Una política o un concepto sobre otras operaciones | 8 |
+| **Total** | **74** |
+
+Las ocho sin contrato propio: valorizar inventario y consultar disponibilidad (conceptos, E13, E22, E12), reposición automática, propuesta de pagos y MRP ("inicia" y la deducción de D97, E19, E20), precio y descuentos, cuentas contables ("fija", E12, E14) y bloquear un pedido por crédito ("limita", E12). Cada contrato nuevo se ejecuta una vez en `nc.cobertura-test`, y se comprueban sus efectos: saldos de inventario por bodega, compromisos reducidos, extinguidos o latentes, saldos contables y de centros de costo, la reversión y el período reabierto. Se usan los diez verbos y las ocho formas.
+
+Áreas: compras 9 contratos, inventario 7, ventas 5, finanzas, contabilidad y tributario 17, costos 7, producción 9, personal 3. Líneas: 968 de EDN, un promedio de 17 por contrato con sus tipos de hecho y entidades.
+
+En 13 filas los contratos usan verbos distintos de los que predijo el análisis:
+
+- **El análisis esperaba más:** devolver mercadería (a proveedor y de cliente) no revierte la venta o la recepción, porque puede ser parcial: registra la devolución y abre la nota de crédito por recibir o emitir. Traspasar no abre un compromiso de tránsito: mueve las dos bodegas en un hecho. Despachar no abre nada: la factura es otra operación. Reservar no reduce ni extingue: lo hace el despacho. Comprometer presupuesto no reduce nada: lo que queda es un concepto que una política "limita" lee.
+- **El análisis esperaba menos:** emitir la orden extingue la oferta que usó, facturar extingue el cobro latente del pedido, y liquidar un sueldo mueve el vencimiento del contrato (modificar compromiso, el décimo verbo, D56, que el análisis no clasificó). El cliente también se desactiva, y un lote se crea antes de bloquearlo.
+- **Cerrar el período** crea la entidad período, en vez de registrar un hecho y modificar una entidad.
+
+Ninguna diferencia pidió un verbo nuevo: son elecciones de modelado dentro de los diez.
+
+### Rodeos al almacén
+
+Ninguno.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente, en los contratos nuevos: la liberación contra el contrato marco no abría el pago contra factura, y la factura y la nota de crédito actuaron sobre una colección vacía sin error (se vio al comprobar los efectos, no al ejecutar). La lista de materiales multiplicaba dos cantidades («3 un por un × 4 un»), que el valor rechaza: los componentes por unidad pasaron a ser un entero. En las pruebas: la cuenta de hechos de E26 olvidaba que una venta en mesón registra tres, y el calentamiento de la medición era corto.
+
+### Mutaciones
+
+Una nueva (leer filtra por el identificador de dominio). La 28 (un saldo se lee por su clave) buscaba el código anterior de `leer` y se reescribió sobre el nuevo. Las 52 son detectadas.
+
+### Hallazgos de la etapa
+
+- **La separación por empresa no es solo de datos, también de tiempo.** D80 impedía ver los datos de otra empresa, pero no impedía pagar por ellos: una lectura que recorre la tabla es correcta y aun así se hace más lenta con cada empresa nueva. E26 lo midió y D102 lo corrigió; el resguardo nuevo impide volver atrás.
+- **Lo que sigue recorriendo la tabla** son las búsquedas por otros campos: los hechos de un caso, los compromisos de un origen, las políticas vigentes. Con dos empresas y 38.000 hechos no se nota (13 ms), pero crece con el total de la base. Con cien empresas habrá que medir de nuevo, antes de las condiciones de D79.
+- **Reducir o modificar una colección vacía no es un error.** Es correcto (el despacho reduce la reserva, si la hay), pero esconde un contrato mal escrito: la cobertura encontró uno así. Una advertencia del catálogo o de la bitácora cuando un efecto no toca nada ayudaría a quien escribe contratos (E25).
+- **La notación no tiene unidades compuestas.** «3 tornillos por repisa» se escribió como un entero; un precio por kilo o un rendimiento por hora pedirán lo mismo.
+- **Producción y personal no pidieron nada nuevo.** La orden de fabricación es tres compromisos internos (T2) que cada paso reduce; el contrato de trabajo es un compromiso con calendario, como el arriendo (T14). Fuera de alcance como dominios completos, pero expresables.
+- **Sin probar:** volumen en disco (no en memoria), más de dos empresas, y E25 (contratos escritos por un agente sin contexto de diseño), que ninguna etapa hizo.
