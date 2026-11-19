@@ -8,6 +8,7 @@
             [nc.catalogo :as cat]
             [nc.ejecutor :as ej]
             [nc.estado :as est]
+            [nc.politicas :as pol]
             [nc.resolvedor :as r])
   (:import (java.util Date)))
 
@@ -50,15 +51,17 @@
     :persona/roles #{:jefe-compras}}])
 
 (defn empresa!
-  "Una empresa nueva con las entidades del caso y la configuración dada. Las
-  políticas se publican vigentes desde hace un mes: las pruebas usan el reloj real."
+  "Una empresa nueva con las entidades del caso y la configuración dada, más las
+  políticas por defecto de la plataforma (D107). Las de la configuración se
+  publican vigentes desde hace un mes: las pruebas usan el reloj real."
   [config]
   (let [e (keyword "empresa" (str (random-uuid)))]
     (swap! empresas conj e)
     (alm/cargar-entidades! *alm* e entidades)
     (doseq [p (:politicas config)]
       (alm/publicar! *alm* e :politicas (assoc p :politica/rige-desde (dias-desde-hoy -30))))
-    (est/abrir *alm* (cat/de-empresa config) e)))
+    (doto (est/abrir *alm* (cat/de-empresa config) e)
+      pol/instalar-por-defecto!)))
 
 (defn ejecutar! [empresa actor op entradas]
   (ej/ejecutar! empresa actor op entradas {:confirmado true}))

@@ -7,7 +7,8 @@
             [nc.almacen :as alm]
             [nc.catalogo :as cat]
             [nc.ejecutor :as ej]
-            [nc.estado :as est])
+            [nc.estado :as est]
+            [nc.politicas :as pol])
   (:import (java.util Date)))
 
 (defn- en-dias [n] (Date. (+ (System/currentTimeMillis) (* n 24 60 60 1000))))
@@ -20,7 +21,8 @@
     (alm/cargar-entidades! almacen empresa entidades)
     (doseq [p (:politicas config)]
       (alm/publicar! almacen empresa :politicas (assoc p :politica/rige-desde (en-dias -30))))
-    (est/abrir almacen (cat/de-empresa config) empresa)))
+    (doto (est/abrir almacen (cat/de-empresa config) empresa)
+      pol/instalar-por-defecto!)))
 
 (defn- con-salidas [salidas entradas]
   (walk/postwalk (fn [x]

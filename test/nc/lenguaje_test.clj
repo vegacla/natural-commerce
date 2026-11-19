@@ -13,6 +13,8 @@
             [nc.estado :as est]
             [nc.marco-test :as m]
             [nc.plan :as plan]
+            [nc.resolvedor :as r]
+            [nc.sara :as sara]
             [nc.sara.lenguaje :as sl]))
 
 (use-fixtures :once m/con-almacen)
@@ -197,6 +199,8 @@
   el costo unitario y MARCO lanza un error de datos. SARA se caía; ahora dice el
   error a la persona, y la decisión queda en la bitácora (D105)."
     (let [b (m/empresa! m/empresa-b)
+          ;; Sin la política por defecto que lo prohíbe (D107), el contrato llega a armar el despacho.
+          _ (alm/retirar! m/*alm* (:empresa b) :politicas :defecto/salir-de-lo-que-hay)
           _ (m/ejecutar! b :persona/ana :ventas/alta-cliente {:id :cliente/ferreteria :nombre "Ferretería" :cupo [:monto 10000000 :CLP]})
           _ (m/ejecutar! b :persona/ana :ventas/registrar-pedido
                          {:cliente :cliente/ferreteria :producto :P-100 :cantidad [:cantidad 1 :un]
@@ -216,3 +220,53 @@
       (testing "confirmar tampoco se cae"
         (is (= :nada-que-confirmar (get-in (sl/confirmar! b :persona/ana c) [:respuesta :estado]))))
       (is (= [] (bit/verificar m/*alm* (:empresa b)))))))
+
+(deftest despachar-sin-existencia-se-prohibe-por-defecto
+  (testing "La misma frase, con las políticas por defecto de la plataforma: MARCO
+  prohíbe con una razón que la persona entiende, y no hay error (D107)."
+    (let [b (m/empresa! m/empresa-b)
+          _ (m/ejecutar! b :persona/ana :ventas/alta-cliente {:id :cliente/ferreteria :nombre "Ferretería" :cupo [:monto 10000000 :CLP]})
+          _ (m/ejecutar! b :persona/ana :ventas/registrar-pedido
+                         {:cliente :cliente/ferreteria :producto :P-100 :cantidad [:cantidad 1 :un]
+                          :precio-unitario [:monto 50000 :CLP]})
+          [modelo] (guion {"despacha el pedido"
+                           (fn [hs] (llamada "ventas__despachar"
+                                             {:entrega (first (opciones hs "ventas__despachar" "entrega"))
+                                              :producto ":P-100" :bodega ":bodega/central" :cantidad "1 un"}))
+                           "vendí uno en el mesón"
+                           (fn [_] (llamada "ventas__venta-mostrador"
+                                            {:producto ":P-100" :bodega ":bodega/central" :cantidad "1 un"
+                                             :precio-unitario "55000 CLP"}))})]
+      (doseq [frase ["despacha el pedido" "vendí uno en el mesón"]]
+        (let [c (sl/turno! b :persona/ana modelo (sl/conversacion) frase)]
+          (is (= :prohibido (get-in c [:respuesta :estado])) frase)
+          (is (re-find #"No hay existencia suficiente del producto en la bodega" (get-in c [:respuesta :texto])) frase)))
+      (is (empty? (hechos b :ventas/despacho)))
+      (is (not-any? #(= :error (:decision/resultado %)) (de-sara b))))))
+
+;; --- D108: lo que la empresa reserva a MARCO ---------------------------------------
+
+(defn- reservar-a-marco [op & [cuando]]
+  (cond-> {:politica/id       :empresa/la-hace-marco
+           :politica/version  1
+           :politica/origen   :empresa
+           :politica/aplica-a op
+           :politica/forma    :permite
+           :politica/cuerpo   {:quien :marco}}
+    cuando (assoc :politica/cuando cuando)))
+
+(deftest lo-reservado-a-marco-no-se-ofrece-a-las-personas
+  (let [op      :compras/extinguir-oferta-vencida
+        ofrece? (fn [e] (and (contains? (set (map :operacion (sl/herramientas e))) op)
+                             (contains? (sara/operaciones e) op)))]
+    (testing "sin política, una persona extingue la oferta vencida: si no, nadie lo haría"
+      (is (ofrece? (m/empresa! {}))))
+    (testing "si la empresa la reserva a MARCO, SARA no la ofrece, ni en el formulario ni al modelo"
+      (let [b (m/empresa! {:politicas [(reservar-a-marco op)]})]
+        (is (not (ofrece? b)))
+        (testing "y si una persona la pide igual, MARCO la prohíbe y dice quién puede"
+          (let [res (r/resolver b :persona/ana op {})]
+            (is (= :prohibido (:estado res)))
+            (is (= :marco (:quien (first (filter #(= :permiso (:id %)) (:requisitos res))))))))))
+    (testing "una reserva con condición no la oculta: a veces la hace una persona"
+      (is (ofrece? (m/empresa! {:politicas [(reservar-a-marco op [:= 1 1])]}))))))

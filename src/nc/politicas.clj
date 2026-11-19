@@ -6,6 +6,7 @@
   edita (D5)."
   (:require [clojure.set :as set]
             [nc.almacen :as alm]
+            [nc.catalogo :as cat]
             [nc.estado :as est]))
 
 (defn- ops-de [p]
@@ -58,6 +59,35 @@
          c)))
 
 (declare publicar!)
+
+(def paquete-por-defecto
+  "Las políticas por defecto de la plataforma (D107)."
+  "defecto/politicas.edn")
+
+(defn por-defecto [] (:politicas (cat/leer paquete-por-defecto)))
+
+(defn intacta?
+  "Si una política vigente es una por defecto que la empresa no cambió: la misma
+  versión que trae el paquete. La plataforma la maneja junto con el plan (D107)."
+  [p]
+  (boolean (some #(= ((juxt :politica/id :politica/version) %) ((juxt :politica/id :politica/version) p))
+                 (por-defecto))))
+
+(defn instalar-por-defecto!
+  "Publica las políticas por defecto de la plataforma (D46, D107) que la empresa
+  puede usar con su plan y no tiene vigentes. Son de la empresa: después las
+  cambia o las retira. Una que la empresa cambió (con una versión posterior en
+  su historia) no se vuelve a instalar. Devuelve lo que pasó con cada una."
+  [{:keys [almacen empresa] :as estado}]
+  (vec (for [p (por-defecto)
+             :let [id (:politica/id p)
+                   historia (alm/historia almacen empresa :politicas id)]
+             :when (every? #(est/habilitada? estado %) (ops-de p))
+             :when (nil? (alm/vigente almacen empresa :politicas id))
+             :when (every? #(<= (:politica/version %) (:politica/version p)) historia)
+             ;; Si ya rigió y se retiró, vuelve desde ahora: su historia no se reescribe.
+             :let [p (cond-> p (seq historia) (assoc :politica/rige-desde (est/ahora estado)))]]
+         (assoc (publicar! estado p {:autor :plataforma}) :politica id))))
 
 (defn instalar-legal!
   "Publica un paquete legal (las políticas de un régimen tributario) en una

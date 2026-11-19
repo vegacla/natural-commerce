@@ -1,0 +1,19 @@
+;; Políticas por defecto de la plataforma (D46, D107): la forma de trabajar que
+;; rige en una empresa mientras ella no diga otra cosa. Las instala la plataforma
+;; al crear la empresa, con `nc.politicas/instalar-por-defecto!`. A diferencia de
+;; las legales (resources/legal/), son de la empresa: las cambia o las retira.
+
+{:politicas
+ [;; Lo que sale de una bodega no supera lo que hay en ella. Sin existencia no hay
+  ;; costo de lo que sale, y el despacho no se puede valorizar. Una empresa que
+  ;; despacha antes de registrar la recepción la retira; entonces necesita otra
+  ;; forma de dar el costo (pendiente en el registro).
+  {:politica/id         :defecto/salir-de-lo-que-hay
+   :politica/version    1
+   :politica/rige-desde #inst "2026-01-01"
+   :politica/origen     :empresa
+   :politica/aplica-a   #{:ventas/despachar :ventas/venta-mostrador}
+   :politica/cuando     [:> entrada/cantidad
+                            [:saldo :inventario/existencia {:producto entrada/producto :bodega entrada/bodega} :cantidad]]
+   :politica/forma      :prohibe
+   :politica/cuerpo     {:razon "No hay existencia suficiente del producto en la bodega"}}]}

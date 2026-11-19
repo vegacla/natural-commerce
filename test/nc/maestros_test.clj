@@ -7,6 +7,7 @@
             [nc.estado :as est]
             [nc.marco-test :as m]
             [nc.plan :as plan]
+            [nc.politicas :as pol]
             [nc.resolvedor :as r]
             [nc.sara :as sara]))
 
@@ -25,6 +26,8 @@
   (let [a (m/empresa! {})
         b (m/empresa! m/empresa-b)]
     (is (= :publicado (:estado (con-plan! a #{:compras}))))
+    (testing "la política por defecto de ventas no pidió elegir: la plataforma la retiró con el plan (D107)"
+      (is (empty? (est/vigentes a))))
     (is (= :publicado (:estado (con-plan! b #{:compras :ventas}))))
     (testing "A no contrató ventas: dar de alta un cliente está prohibido, y no se escribe nada"
       (let [res (ej/ejecutar! a :persona/ana :ventas/alta-cliente ferreteria {:confirmado true})]
@@ -58,7 +61,8 @@
             res (plan/cambiar! b2 {:plan/capacidades #{:ventas} :plan/rige-desde (m/dias-desde-hoy -1)}
                                {:eleccion :retirar-politicas})]
         (is (= 4 (count (:retiradas res))))
-        (is (empty? (est/vigentes b2)))
+        (is (= [:defecto/salir-de-lo-que-hay] (map :politica/id (est/vigentes b2)))
+            "queda solo la por defecto, que es de ventas (D107)")
         (is (= :prohibido (:estado (r/resolver b2 :persona/ana :compras/registrar-solicitud
                                                {:producto :P-100 :cantidad [:cantidad 1 :un]}))))))))
 
@@ -122,3 +126,27 @@
       (is (true? (:entidad/activa (est/leer (est/al b r1) :cliente/ferreteria)))))
     (testing "los invariantes de la bitácora se cumplen"
       (is (= [] (bit/verificar m/*alm* e))))))
+
+(deftest una-politica-por-defecto-cambiada-es-de-la-empresa
+  (testing "Si la empresa cambia una política por defecto, ya es suya: dejar la
+  capacidad de que depende le pide elegir, como con cualquier otra (D36, D107)."
+    (let [a (m/empresa! {})
+          p (assoc (first (pol/por-defecto))
+                   :politica/version 2 :politica/rige-desde (m/dias-desde-hoy -1)
+                   :politica/cuerpo {:razon "Sin existencia no se despacha"})]
+      (is (= :publicada (:estado (pol/publicar! a p))))
+      (let [res (con-plan! a #{:compras})]
+        (is (= :requiere-eleccion (:estado res)))
+        (is (= [:defecto/salir-de-lo-que-hay] (map :politica (:afectadas res)))))
+      (testing "y al volver a contratar ventas, la plataforma no reinstala la del paquete"
+        (plan/cambiar! a {:plan/capacidades #{:compras} :plan/rige-desde (m/dias-desde-hoy -1)}
+                       {:eleccion :retirar-politicas})
+        (is (empty? (est/vigentes a)))
+        (con-plan! a #{:compras :ventas})
+        (is (empty? (est/vigentes a)))))
+    (testing "una intacta sí vuelve con la capacidad"
+      (let [b (m/empresa! {})]
+        (con-plan! b #{:compras})
+        (is (empty? (est/vigentes b)))
+        (con-plan! b #{:compras :ventas})
+        (is (= [:defecto/salir-de-lo-que-hay] (map :politica/id (est/vigentes b))))))))

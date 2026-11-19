@@ -104,7 +104,7 @@ th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--borde);white
 
 (defn- inicio [ctx params]
   (let [estado (de-la-empresa ctx params)
-        ops    (est/operaciones estado)
+        ops    (sara/operaciones estado)
         enlace (fn [[op _]] [:a {:href (url "/op" (assoc (select-keys params ["e" "actor"]) :op (subs (str op) 1)))}
                              (sara/titulo op)])]
     (pagina ctx params "Inicio"

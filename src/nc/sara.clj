@@ -8,6 +8,7 @@
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
             [nc.almacen :as alm]
+            [nc.ejecutor :as ej]
             [nc.esquema :as esq]
             [nc.estado :as est]
             [nc.resolvedor :as r]
@@ -234,12 +235,28 @@
            {:nombre (titulo k) :tabla (tabla x nombrar)}
            {:nombre (titulo k) :valor (mostrar x)})))))
 
+(defn solo-marco?
+  "Si la empresa reserva `op` a MARCO: hay políticas \"permite\" que la rigen, y
+  todas, sin condición, dan permiso solo a MARCO (D108)."
+  [estado op]
+  (let [ps (filter #(= :permite (:politica/forma %)) (est/politicas estado op nil))]
+    (boolean (and (seq ps)
+                  (every? #(and (not (contains? % :politica/cuando))
+                                (= ej/actor-marco (get-in % [:politica/cuerpo :quien])))
+                          ps)))))
+
+(defn operaciones
+  "Las operaciones que SARA ofrece a las personas: las del plan de la empresa,
+  menos las que la empresa reservó a MARCO (D108)."
+  [estado]
+  (into (sorted-map) (remove #(solo-marco? estado (key %))) (est/operaciones estado)))
+
 (defn siguientes
   "Las operaciones que reciben como entrada alguna de estas salidas (D10), con
   esas entradas ya puestas: así se encadena un paso con el siguiente."
   [estado salidas]
   (let [ids (into {} (filter (comp (some-fn uuid? keyword?) val)) salidas)]
-    (vec (for [[op c] (est/operaciones estado)
+    (vec (for [[op c] (operaciones estado)
                :let [comunes (select-keys ids (map first (esq/campos-ordenados (:op/entradas c))))]
                :when (seq comunes)]
            {:operacion op :titulo (titulo op) :entradas comunes}))))

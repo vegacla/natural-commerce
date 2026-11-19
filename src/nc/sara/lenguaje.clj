@@ -53,10 +53,11 @@
       (seq opciones) (assoc :opciones (mapv #(sara/escribir tipo (first %)) opciones)))))
 
 (defn herramientas
-  "Lo que el modelo puede elegir: una herramienta por operación del plan de la
-  empresa, con una entrada de texto por entrada del contrato."
+  "Lo que el modelo puede elegir: una herramienta por operación que SARA ofrece a
+  las personas (las del plan, menos las reservadas a MARCO, D108), con una
+  entrada de texto por entrada del contrato."
   [estado]
-  (vec (for [[op c] (est/operaciones estado)]
+  (vec (for [[op c] (sara/operaciones estado)]
          {:nombre      (nombre-herramienta op)
           :operacion   op
           :descripcion (str (sara/titulo op) " (" (name (:op/tipo c)) ")")

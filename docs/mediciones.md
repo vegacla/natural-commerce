@@ -814,3 +814,28 @@ Dos agentes (Opus y Haiku) agregaron un concepto propio para no repetir monto m�
 ### Mutaciones
 
 Una nueva: SARA se cae con un error de MARCO.
+
+## Políticas por defecto y lo reservado a MARCO (D107, D108, 2026-11-19)
+
+### Líneas
+
+| Archivo | Qué hace | Líneas |
+|---|---|---|
+| `src/nc/politicas.clj` | Instalar las políticas por defecto según el plan; saber si una sigue intacta | +29 |
+| `src/nc/plan.clj` | Al cambiar el plan, retirar las por defecto intactas sin pedir elección, e instalar las que ahora caben | +27 |
+| `src/nc/ejemplo.clj` | Las empresas de ejemplo reciben las por defecto | +3 |
+| `src/nc/sara.clj` | Las operaciones que SARA ofrece a las personas: sin las reservadas a MARCO | +19 |
+| `src/nc/sara/web.clj`, `src/nc/sara/lenguaje.clj` | Usan esa lista | 0 netas |
+| `resources/defecto/politicas.edn` | La primera política por defecto | nuevo |
+
+El núcleo de MARCO (resolvedor, ejecutor, almacén, estado) no cambió. Plan y políticas son de la plataforma.
+
+### Hallazgos
+
+- **Una política por defecto choca con el plan.** La primera versión instalaba la política en cada empresa. Al reducir el plan de A a compras, la política de despacho (de ventas) pedía a A elegir entre retirarla o conservar ventas, y el plan no se publicaba: fallaron 12 comprobaciones. La plataforma ahora la maneja junto con el plan (D107).
+- **Ninguna operación era de MARCO.** Extinguir una oferta vencida la ejecuta MARCO solo donde una "inicia" lo dispone. Que A la vea (E24) era correcto, y la regla quedó como permiso de la empresa (D108).
+- La misma frase de E23 que antes daba error («despacha el pedido» sin recepciones) ahora es una prohibición con razón: «No hay existencia suficiente del producto en la bodega».
+
+### Pruebas y mutaciones
+
+90 pruebas con 794 comprobaciones, todas pasan. Seis mutaciones nuevas: una por defecto pide elegir al cambiar el plan, el plan no la retira, no se instalan, una cambiada cuenta como intacta, SARA ofrece lo reservado a MARCO, una reserva con condición oculta la operación. Las 59 se detectan. Se corrigió el patrón de «el paquete legal se instala como empresa», que con el código nuevo mutaba otra función.

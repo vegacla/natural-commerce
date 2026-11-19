@@ -132,8 +132,8 @@
   :poner "((requiring-resolve 'nc.sii/enviar-v1) (get refs 'entrada))"}
  {:nombre "el paquete legal se instala como empresa"
   :archivo "src/nc/politicas.clj"
-  :buscar "(publicar! estado p {:autor :plataforma})"
-  :poner "(publicar! estado p {:autor :empresa})"}
+  :buscar "(mapv (fn [p] (assoc (publicar! estado p {:autor :plataforma})"
+  :poner "(mapv (fn [p] (assoc (publicar! estado p {:autor :empresa})"}
  {:nombre "redondear no admite fracciones"
   :archivo "src/nc/valor.clj"
   :buscar "(.divide (bigdec (numerator n)) (bigdec (denominator n)) 20 java.math.RoundingMode/HALF_UP)"
@@ -190,7 +190,7 @@
   :poner "true"}
  {:nombre "el modelo ve todo el catálogo"
   :archivo "src/nc/sara/lenguaje.clj"
-  :buscar "(vec (for [[op c] (est/operaciones estado)]"
+  :buscar "(vec (for [[op c] (sara/operaciones estado)]"
   :poner "(vec (for [[op c] (get-in estado [:catalogo :contratos])]"}
  {:nombre "el modelo usa una operación que no se le ofreció"
   :archivo "src/nc/sara/lenguaje.clj"
@@ -202,6 +202,32 @@
            {:estado :error"
   :poner "(if-let [tipo nil]
            {:estado :error"}
+ ;; D107: las políticas por defecto las maneja la plataforma junto con el plan.
+ {:nombre "una por defecto pide elegir al cambiar el plan"
+  :archivo "src/nc/plan.clj"
+  :buscar "(for [a (afectadas-todas estado capacidades) :when (not (:defecto a))]"
+  :poner "(for [a (afectadas-todas estado capacidades)]"}
+ {:nombre "el plan no retira la por defecto que deja sin capacidad"
+  :archivo "src/nc/plan.clj"
+  :buscar "(do (alm/retirar! almacen empresa :politicas (:politica a) {:desde rige-desde})"
+  :poner "(do nil"}
+ {:nombre "las políticas por defecto no se instalan"
+  :archivo "src/nc/politicas.clj"
+  :buscar ":when (every? #(est/habilitada? estado %) (ops-de p))"
+  :poner ":when false"}
+ {:nombre "una por defecto cambiada por la empresa cuenta como intacta"
+  :archivo "src/nc/politicas.clj"
+  :buscar "(boolean (some #(= ((juxt :politica/id :politica/version) %) ((juxt :politica/id :politica/version) p))"
+  :poner "(boolean (some #(= (:politica/id %) (:politica/id p))"}
+ ;; D108: lo reservado a MARCO no se ofrece a las personas.
+ {:nombre "SARA ofrece lo reservado a MARCO"
+  :archivo "src/nc/sara.clj"
+  :buscar "(into (sorted-map) (remove #(solo-marco? estado (key %))) (est/operaciones estado))"
+  :poner "(est/operaciones estado)"}
+ {:nombre "una reserva con condición oculta la operación"
+  :archivo "src/nc/sara.clj"
+  :buscar "(every? #(and (not (contains? % :politica/cuando))"
+  :poner "(every? #(and true"}
  {:nombre "el adaptador del modelo conoce MARCO"
   :archivo "src/nc/sara/claude.clj"
   :buscar "(:import (com.anthropic.client AnthropicClient)"
