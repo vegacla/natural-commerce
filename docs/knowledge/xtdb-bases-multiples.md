@@ -20,7 +20,7 @@ $$
 - La configuración de las bases adjuntas se guarda como metadatos en la primaria. `DETACH DATABASE` es asíncrono desde 2.2: reponer el mismo nombre muy pronto da `xtdb/db-being-detached`.
 - Serializabilidad solo dentro de una base; una transacción no cruza bases.
 
-## Trampas
+## Comportamientos (verificados en la evaluación del 2026-11-18)
 
 - **El YAML falla en silencio.** Un espacio antes de `log:` (`$$ log:`) deja la primera línea más indentada que las demás y da solo "Invalid database config in `ATTACH DATABASE`:", sin detalle. Va pegado: `$$log:`.
 - **Nombres sin guiones.** `db-a` falla con error de sintaxis SQL; usar `db_a`.

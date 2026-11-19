@@ -17,7 +17,7 @@ El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembr
 5. `docs/prototipo-ampliado.md` — el modelo como ERP: mecanismos M1 a M25, escenarios E10 a E27, etapas 7 a 13.
 6. `docs/revision-xtdb.md` — respaldo, costos y soporte de XTDB; criterio de salida.
 7. `docs/separacion-por-empresa.md` — resguardos de la separación por empresa (D22, D80) y cómo se verifican.
-8. `docs/knowledge/` — lo que se aprende implementando: comportamientos de las herramientas, trampas y procedimientos (`README.md` es el índice).
+8. `docs/knowledge/` — lo que se aprende implementando: comportamientos de las herramientas y procedimientos, cada uno con cómo se verificó (`README.md` es el índice).
 9. `docs/analisis-universo-operaciones.md` y `docs/analisis/operaciones.csv` — 74 operaciones de ERP clasificadas por primitivos, verbos y formas de política.
 
 ## Principio de diseño (D46)
@@ -49,7 +49,7 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 ## Forma de trabajo
 
 - Separación por empresa (D80): solo `src/nc/almacen.clj` toca XTDB; toda función pública del almacén recibe la empresa y la valida; ningún código recibe una empresa de afuera sin pasarla por la vista de empresa (`estado.clj`). Al agregar una función pública al almacén, declararla en `test/nc/resguardos_test.clj`. `deps -M:mutaciones` (con `JAVA_CMD`) rompe cada resguardo de `scripts/mutaciones.edn` y comprueba que alguna prueba falle, en una sola JVM (unos 100 s). Al agregar un resguardo, agregar su mutación.
-- El conocimiento que se obtiene al implementar (cómo se comporta una herramienta, una trampa, un procedimiento) se escribe en `docs/knowledge/`, un archivo por tema, y se agrega a su índice.
+- El conocimiento que se obtiene al implementar (cómo se comporta una herramienta, un procedimiento que funcionó, separando lo que es de la herramienta de lo que fue error nuestro) se escribe en `docs/knowledge/`, un archivo por tema, y se agrega a su índice.
 - Toda decisión nueva se agrega a `docs/registro-de-decisiones.md` con el número siguiente al último.
 - Lo tributario chileno no está verificado por un experto: construirlo desde fuentes oficiales del SII y marcarlo (D42).
 - Medir lo que pide la sección 7 de `docs/prototipo-minimo.md`: líneas del núcleo frente a líneas por operación, rodeos al almacén, correcciones humanas.

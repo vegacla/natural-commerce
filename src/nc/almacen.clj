@@ -133,7 +133,7 @@
   "El tiempo de validez de una lectura sin fecha: el reloj, o la última escritura
   si el reloj no la alcanza. Un dato rige desde su tiempo de registro; leer con
   un reloj que no llega a él no ve lo que se acaba de escribir (ver
-  knowledge/xtdb-bitemporalidad.md)."
+  knowledge/xtdb-comportamientos.md)."
   [{:keys [ultimo]}]
   (let [n (Instant/now) u @ultimo]
     (if (and u (.isAfter ^Instant u n)) u n)))
@@ -188,7 +188,7 @@
   ([alm empresa tabla id opts]
    ;; Un saldo se busca por su identificador, no por su clave: XTDB no compara
    ;; bien un mapa cuando la columna guarda claves de formas distintas
-   ;; (knowledge/xtdb-trampas.md).
+   ;; (knowledge/xtdb-comportamientos.md).
    (let [filtro (if (= :saldos tabla)
                   {:xt/id (xt-id :saldos empresa {:saldo/concepto (first id) :saldo/clave (second id)})}
                   {(tablas tabla) id})]

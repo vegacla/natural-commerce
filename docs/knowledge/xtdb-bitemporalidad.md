@@ -8,11 +8,6 @@ Observado en las etapas 2, 4 y 5 (17 de noviembre de 2026), XTDB 2.2.0. Origen: 
 - Una política cargada hoy con `:rige-desde` en 30 días no rige hasta entonces, y se puede preguntar qué regirá en una fecha según lo que se sabía en otra.
 - La historia completa de un documento se lee con `:for-valid-time :all-time` (`almacen/historia`).
 - Borrar con fecha de validez (`:delete-docs {:from t :valid-from d}`) hace que un dato deje de regir desde `d` sin perder su historia. Es lo que usa `retirar!` (D75).
-- Valores del dominio (`[:monto 30000 :CLP]`, keywords, mapas anidados) se guardan y vuelven sin conversión. Los símbolos no: ver `xtdb-trampas.md`.
+- Valores del dominio (`[:monto 30000 :CLP]`, keywords, mapas anidados) se guardan y vuelven sin conversión. Los símbolos no: ver `xtdb-comportamientos.md`.
 
-## Trampas
-
-- **Precisión del tiempo de registro.** XTDB registra microsegundos; `java.util.Date` solo milisegundos. Convertir el tiempo de una transacción a `Date` y consultar `:al` ese instante deja fuera la propia transacción. Los tiempos de XTDB se devuelven como `Instant` (`de-xt`); solo los datos del dominio pasan a `Date`.
-- **Versiones publicadas fuera de orden.** Una escritura con `:valid-from` y sin `:valid-to` rige hasta el fin del tiempo, y pisa una versión posterior ya cargada. Al publicar una versión, `publicar!` busca la siguiente y le pone `:valid-to`. Es semántica bitemporal normal, no un defecto, pero hay que resolverla.
-- **Leer lo que se acaba de escribir** (2026-11-19). Una consulta sin tiempo de validez usa la hora actual, y un dato rige desde el tiempo de registro de su transacción. Si la lectura cae en el mismo instante que la escritura, el dato todavía no rige y no se ve: una operación podía no encontrar la orden que la anterior acababa de emitir. Pasaba en 2 de 40 vueltas con la JVM caliente. El almacén anota el registro de su última escritura y lee con el mayor entre ese instante y el reloj (`almacen/ahora`). En las pruebas, "hoy" va como `Instant`, no como `Date`: con milisegundos queda antes de la transacción.
-- **El tiempo de registro debe ser creciente.** Las pruebas usan el reloj real. Un tiempo de registro en el futuro deja los datos invisibles para una consulta de hoy. La opción `:registro` de `escribir!` y `publicar!` solo sirve para cargar datos antiguos y para pruebas, y debe ser posterior a la última transacción.
+Lo que hay que respetar al usarlos (microsegundos, versiones fuera de orden, leer lo recién escrito) está en `xtdb-comportamientos.md`.

@@ -68,7 +68,7 @@ Pruebas: 422 líneas en total; 6 pruebas nuevas del almacén. Las 22 pruebas, co
 
 ### Rodeos al almacén
 
-1. **Tablas que no existen.** 4 líneas (ver `docs/knowledge/xtdb-trampas.md`).
+1. **Tablas que no existen.** 4 líneas (ver `docs/knowledge/xtdb-comportamientos.md`).
 2. **Precisión del tiempo de registro.** Microsegundos de XTDB frente a milisegundos de `Date`. 6 líneas (ver `docs/knowledge/xtdb-bitemporalidad.md`).
 3. **Versiones publicadas fuera de orden.** 7 líneas (ver `docs/knowledge/xtdb-bitemporalidad.md`).
 
@@ -119,7 +119,7 @@ Agregar registrar recepción y consultar estado costó 23 líneas de contrato y 
 
 ### Rodeos al almacén
 
-4. **Símbolos.** XTDB no los guarda; se convierten al escribir y al leer. 7 líneas, sin cambio de notación (ver `docs/knowledge/xtdb-trampas.md`).
+4. **Símbolos.** XTDB no los guarda; se convierten al escribir y al leer. 7 líneas, sin cambio de notación (ver `docs/knowledge/xtdb-comportamientos.md`).
 
 ### Correcciones
 
@@ -201,7 +201,7 @@ Pruebas: 935 líneas en total; 4 pruebas nuevas, una por escenario. Las 32 prueb
 
 ### Rodeos al almacén
 
-Ninguno nuevo. La verificación atómica de E7 y retirar una política usan lo que XTDB ofrece (ver `docs/knowledge/xtdb-trampas.md` y `xtdb-bitemporalidad.md`).
+Ninguno nuevo. La verificación atómica de E7 y retirar una política usan lo que XTDB ofrece (ver `docs/knowledge/xtdb-comportamientos.md` y `xtdb-bitemporalidad.md`).
 
 ### Correcciones
 
@@ -432,7 +432,7 @@ Once operaciones nuevas, sin código propio: despachar, emitir factura, registra
 
 ### Rodeos al almacén
 
-6. **Filtrar por igualdad de mapa** deja de funcionar cuando la columna guarda mapas de formas distintas. Los saldos se buscan por su `_id` (ver `knowledge/xtdb-trampas.md`). 3 líneas.
+6. **Filtrar por igualdad de mapa** deja de funcionar cuando la columna guarda mapas de formas distintas. Los saldos se buscan por su `_id` (ver `knowledge/xtdb-comportamientos.md`). 3 líneas.
 7. **`BigInteger`** no se guarda. 1 línea en `nc.valor`.
 
 ### Correcciones

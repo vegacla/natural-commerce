@@ -8,7 +8,7 @@ Probado el 17 de noviembre de 2026 con `test/nc/respaldo_test.clj`, nodo en el m
 - **Restaurar solo el almacenamiento:** XTDB se niega a arrancar con «invalid transaction log state (the log is empty)». No arranca en silencio con datos a medias. Con una época nueva en el log (`:epoch 1`) arranca; vuelve lo que estaba en bloques y se pierde lo posterior al último bloque.
 - Con poco volumen no se cierra ningún bloque: todo vive en el log. En la prueba, la carpeta de almacenamiento quedó vacía y el log tenía 2 archivos (unos 650 KB); un respaldo solo del almacenamiento no habría guardado nada.
 
-## Trampas
+## Comportamientos (verificados con `respaldo-test`)
 
 - **En Windows, la ruta del log y del almacenamiento debe pasarse como `Path`**, no como texto: con texto XTDB la lee como URI y falla (`{:log [:local {:path (.resolve raiz "log")}]}`).
 - **Forzar un bloque:** `xtdb.log/send-flush-block-msg!` (con `(db/primary-db nodo)`), seguido de `xtdb.log/sync-node` y de esperar a que aparezca el archivo. No es una API documentada para usuarios; sirve para un respaldo programado.

@@ -110,7 +110,7 @@
         r3     (:registro (alm/publicar! *alm* e :politicas (compra-formal 3 (dias-desde-hoy -10))))
         r4     (:registro (alm/publicar! *alm* e :politicas (compra-formal 4 en-30)))
         ;; Instant, no Date: con milisegundos, hoy podría quedar antes de la
-        ;; transacción que se acaba de escribir (knowledge/xtdb-bitemporalidad.md).
+        ;; transacción que se acaba de escribir (knowledge/xtdb-comportamientos.md).
         hoy    (java.time.Instant/now)
         version (fn [opts] (:politica/version (alm/vigente *alm* e :politicas :empresa-b/compra-formal opts)))]
     (testing "una versión cargada hoy rige recién desde su fecha (H9)"
