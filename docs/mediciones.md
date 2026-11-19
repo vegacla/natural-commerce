@@ -821,12 +821,12 @@ Una nueva: SARA se cae con un error de MARCO.
 
 | Archivo | Qué hace | Líneas |
 |---|---|---|
-| `src/nc/politicas.clj` | Instalar las políticas por defecto según el plan; saber si una sigue intacta | +29 |
-| `src/nc/plan.clj` | Al cambiar el plan, retirar las por defecto intactas sin pedir elección, e instalar las que ahora caben | +27 |
-| `src/nc/ejemplo.clj` | Las empresas de ejemplo reciben las por defecto | +3 |
-| `src/nc/sara.clj` | Las operaciones que SARA ofrece a las personas: sin las reservadas a MARCO | +19 |
-| `src/nc/sara/web.clj`, `src/nc/sara/lenguaje.clj` | Usan esa lista | 0 netas |
-| `resources/defecto/politicas.edn` | La primera política por defecto | nuevo |
+| `src/nc/politicas.clj` | Instalar las políticas por defecto según el plan; saber si una sigue intacta | +30 |
+| `src/nc/plan.clj` | Al cambiar el plan, retirar las por defecto intactas sin pedir elección, e instalar las que ahora caben | +18 netas (31 y 13) |
+| `src/nc/ejemplo.clj` | Las empresas de ejemplo reciben las por defecto | +2 netas |
+| `src/nc/sara.clj` | Las operaciones que SARA ofrece a las personas: sin las reservadas a MARCO | +17 netas |
+| `src/nc/sara/web.clj`, `src/nc/sara/lenguaje.clj` | Usan esa lista | +1 neta |
+| `resources/defecto/politicas.edn` | La primera política por defecto | 19 |
 
 El núcleo de MARCO (resolvedor, ejecutor, almacén, estado) no cambió. Plan y políticas son de la plataforma.
 
