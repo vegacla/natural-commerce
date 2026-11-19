@@ -62,9 +62,7 @@
    :op/salidas   {:cesion cesion/id}
    :op/efectos
    [[:registra-hecho :finanzas/cesion entrada :como cesion]
-    [:transfiere-compromiso [:compromisos {:tipo   :ventas/por-cobrar
-                                           :origen [:-> entrada/factura :hecho/datos :pedido]
-                                           :estado :activo}]
+    [:transfiere-compromiso [:compromisos {:tipo :ventas/por-cobrar :origen entrada/factura :estado :activo}]
                             {:acreedor entrada/cesionario}]]}
 
   {:op/id        :finanzas/registrar-arriendo

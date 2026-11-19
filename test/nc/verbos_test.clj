@@ -86,27 +86,30 @@
         p1 (:pedido (pedido! a :cliente/ferreteria 2 50000))
         p2 (:pedido (pedido! a :cliente/ferreteria 4 50000))
         p3 (:pedido (pedido! a :cliente/ferreteria 1 80000))
-        _  (factura! a p1 100000 :vence 10)
-        _  (factura! a p2 200000 :vence 20)
+        f1 (get-in (factura! a p1 100000 :vence 10) [:salidas :factura])
+        f2 (get-in (factura! a p2 200000 :vence 20) [:salidas :factura])
         f3 (get-in (factura! a p3 80000 :vence 30) [:salidas :factura])
         saldo #(get-in (por-cobrar a %) [:compromiso/saldo :monto])]
-    (testing "la factura activa lo que se cobra, con su vencimiento"
-      (is (= :activo (:compromiso/estado (por-cobrar a p1)))))
+    (testing "la factura extingue lo que el pedido dejó por facturar y abre lo que se cobra, con su vencimiento"
+      (is (= [:extinguido :facturado]
+             ((juxt :compromiso/estado (comp :causa :compromiso/extincion)) (por-cobrar a p1))))
+      (is (= [:activo [:monto 100000 :CLP]]
+             ((juxt :compromiso/estado (comp :monto :compromiso/saldo)) (por-cobrar a f1)))))
     (testing "un cobro reduce varias facturas, de la que vence antes a la que vence después (T9)"
       (let [cobro (m/ejecutar! a :persona/ana :ventas/registrar-cobro {:cliente :cliente/ferreteria :monto [:monto 150000 :CLP]})]
         (is (= 1 (count (:hechos cobro)))))
-      (is (= [:extinguido [:monto 0 :CLP]] ((juxt :compromiso/estado (comp :monto :compromiso/saldo)) (por-cobrar a p1))))
-      (is (= [:monto 150000 :CLP] (saldo p2))))
+      (is (= [:extinguido [:monto 0 :CLP]] ((juxt :compromiso/estado (comp :monto :compromiso/saldo)) (por-cobrar a f1))))
+      (is (= [:monto 150000 :CLP] (saldo f2))))
     (testing "ceder una factura cambia el acreedor sin extinguir lo que se cobra (T8)"
       (let [cesion (m/ejecutar! a :persona/ana :finanzas/ceder-factura {:factura f3 :cesionario :proveedor/beta})
-            c      (por-cobrar a p3)]
+            c      (por-cobrar a f3)]
         (is (= [:proveedor/beta :activo [:monto 80000 :CLP]]
                ((juxt :compromiso/acreedor :compromiso/estado (comp :monto :compromiso/saldo)) c)))
         (is (= (first (:hechos cesion)) (:compromiso/transferido-por c)))))
     (testing "el cobro siguiente de la empresa ya no toca la factura cedida: la cobra el nuevo acreedor"
       (m/ejecutar! a :persona/ana :ventas/registrar-cobro {:cliente :cliente/ferreteria :monto [:monto 150000 :CLP]})
-      (is (= :extinguido (:compromiso/estado (por-cobrar a p2))))
-      (is (= [:monto 80000 :CLP] (saldo p3))))))
+      (is (= :extinguido (:compromiso/estado (por-cobrar a f2))))
+      (is (= [:monto 80000 :CLP] (saldo f3))))))
 
 ;; --- E16 -------------------------------------------------------------------------
 
@@ -162,7 +165,7 @@
         (is (= f1 (:hecho/revierte (est/leer a nota))))
         (is (= (dissoc antes :xt/valid-from :xt/system-from) (dissoc (est/leer a f1) :xt/valid-from :xt/system-from)))
         (is (= [:monto 0 :CLP] (facturado)))
-        (is (= :extinguido (:compromiso/estado (por-cobrar a pedido))))))
+        (is (= :extinguido (:compromiso/estado (por-cobrar a f1))))))
     (testing "una factura se revierte una sola vez; el intento queda en la bitácora como error del contrato"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"ya fue revertido"
                             (m/ejecutar! a :persona/ana :ventas/emitir-nota-credito {:factura f1 :fecha (Date.)})))

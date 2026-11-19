@@ -1,0 +1,42 @@
+;; Paquete legal inicial de Chile (D5, D42). Lo instala la plataforma con
+;; `nc.politicas/instalar-legal!`; la empresa no lo edita.
+;;
+;; NO VERIFICADO por un experto tributario. Cada política dice su fuente y
+;; `:politica/verificada false`. Antes de usarse con clientes debe revisarse
+;; contra las fuentes oficiales del SII.
+
+{:politicas
+ [{:politica/id         :legal.cl/iva
+   :politica/version    1
+   :politica/rige-desde #inst "2026-01-01"
+   :politica/origen     :legal
+   :politica/aplica-a   :ventas/emitir-factura
+   :politica/forma      :fija
+   :politica/cuerpo     {:campo :entrada/iva
+                         :valor [:redondear [:* entrada/monto [:% 19]]]}
+   :politica/fuente     "DL 825, Ley sobre Impuesto a las Ventas y Servicios, art. 14: tasa general de 19% sobre la base imponible."
+   :politica/verificada false}
+
+  {:politica/id         :legal.cl/folio-correlativo
+   :politica/version    1
+   :politica/rige-desde #inst "2026-01-01"
+   :politica/origen     :legal
+   :politica/aplica-a   :ventas/emitir-factura
+   :politica/forma      :fija
+   :politica/cuerpo     {:campo :entrada/folio
+                         :valor [:+ [:saldo :tributario/folios {:documento :factura} :emitidos]
+                                    [:cantidad 1 :folio]]}
+   :politica/fuente     "SII, documentos tributarios electrónicos: cada documento usa el folio siguiente de un rango autorizado (CAF)."
+   :politica/verificada false}
+
+  {:politica/id         :legal.cl/sin-folios
+   :politica/version    1
+   :politica/rige-desde #inst "2026-01-01"
+   :politica/origen     :legal
+   :politica/aplica-a   :ventas/emitir-factura
+   :politica/cuando     [:>= [:saldo :tributario/folios {:documento :factura} :emitidos]
+                             [:saldo :tributario/folios {:documento :factura} :autorizados]]
+   :politica/forma      :prohibe
+   :politica/cuerpo     {:razon "No quedan folios autorizados por el SII para facturas"}
+   :politica/fuente     "SII, documentos tributarios electrónicos: no se emite un documento sin folio autorizado."
+   :politica/verificada false}]}

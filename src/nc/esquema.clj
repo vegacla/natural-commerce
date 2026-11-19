@@ -68,6 +68,7 @@
    [:tipo-hecho/mueve {:optional true}
     [:vector [:map {:closed true}
               [:saldo :qualified-keyword]
+              [:cada {:optional true} :any]
               [:clave [:map-of :keyword :any]]
               [:suma [:map-of :keyword :any]]]]]])
 
@@ -95,7 +96,7 @@
    [:op/efectos {:optional true} [:vector :any]]
    [:op/inverso {:optional true} :qualified-keyword]
    [:op/entidad {:optional true} :keyword]
-   [:op/impl {:optional true} :qualified-symbol]])
+   [:op/impl {:optional true} :qualified-keyword]])
 
 (def eventos
   "Catálogo de eventos que admite :politica/aplica-a (notación 6.1)."
@@ -118,7 +119,9 @@
    [:politica/cuando {:optional true} :any]
    [:politica/forma [:enum :exige :prohibe :limita :sugiere :fija :exime :inicia :permite]]
    [:politica/cuerpo :any]
-   [:politica/prioridad {:optional true} [:maybe :int]]])
+   [:politica/prioridad {:optional true} [:maybe :int]]
+   [:politica/fuente {:optional true} :string]
+   [:politica/verificada {:optional true} :boolean]])
 
 (def ^:private campo-y-valor
   [:map {:closed true} [:campo :qualified-keyword] [:valor :any]])
@@ -167,7 +170,7 @@
 (defn- entorno
   "Entorno de validación para las expresiones de una operación."
   [catalogo entradas]
-  {:refs      (assoc refs-comunes 'entrada entradas)
+  {:refs      (assoc refs-comunes 'entrada entradas 'impl :cualquiera)
    :campos    (:campos catalogo)
    :conceptos (:conceptos catalogo)})
 
@@ -182,7 +185,9 @@
 (defn problemas-tipo-hecho [tipo-hecho catalogo]
   (or (forma TipoHecho tipo-hecho)
       (let [datos (tipos-de (:tipo-hecho/datos tipo-hecho))
-            ent   (assoc-in (entorno catalogo {}) [:refs 'hecho] datos)]
+            ent   (-> (entorno catalogo {})
+                      (assoc-in [:refs 'hecho] datos)
+                      (assoc-in [:refs 'cada] :cualquiera))]
         (if (nil? datos)
           [(problema :datos-invalidos (:tipo-hecho/datos tipo-hecho) "Los datos deben ser un [:map ...] válido")]
           (for [mueve (:tipo-hecho/mueve tipo-hecho)

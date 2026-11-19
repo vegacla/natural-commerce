@@ -49,17 +49,28 @@
   Con signo -1 deshace lo que movió: así se revierte un hecho."
   ([app h tipo-hecho] (mover app h tipo-hecho 1))
   ([app h tipo-hecho signo]
-   (reduce (fn [app {:keys [saldo clave suma]}]
-             (let [ctx    (assoc-in (contexto app) [:refs 'hecho] h)
-                   clave  (e/evaluar clave ctx)
-                   k      [saldo clave]
-                   {:keys [almacen empresa]} (:estado app)
-                   actual (or (get-in app [:saldos k])
-                              (alm/leer almacen empresa :saldos k)
-                              {:saldo/concepto saldo :saldo/clave clave :saldo/valor {}})
-                   suma   (update-vals (e/evaluar suma ctx) #(v/multiplicar signo %))]
-               (assoc-in app [:saldos k]
-                         (update (dissoc actual :empresa :nc/decision) :saldo/valor #(merge-with v/sumar % suma)))))
+   (reduce (fn [app {:keys [saldo cada clave suma] :as mueve}]
+             (let [ctx (assoc-in (contexto app) [:refs 'hecho] h)
+                   ;; Con :cada, el hecho mueve un saldo por elemento (las líneas
+                   ;; de un asiento). Sin la colección, no mueve nada.
+                   elementos (if (contains? mueve :cada)
+                               (let [col (:valor (e/evaluar-seguro cada ctx))]
+                                 (if (map? col) (vals col) col))
+                               [nil])]
+               (reduce (fn [app elemento]
+                         (let [ctx    (cond-> ctx elemento (assoc-in [:refs 'cada] elemento))
+                               clave  (e/evaluar clave ctx)
+                               k      [saldo clave]
+                               {:keys [almacen empresa]} (:estado app)
+                               actual (or (get-in app [:saldos k])
+                                          (alm/leer almacen empresa :saldos k)
+                                          {:saldo/concepto saldo :saldo/clave clave :saldo/valor {}})
+                               suma   (update-vals (sin-nada (e/evaluar suma ctx)) #(v/multiplicar signo %))]
+                           (if (some nil? (vals clave))
+                             app
+                             (assoc-in app [:saldos k]
+                                       (update (dissoc actual :empresa :nc/decision) :saldo/valor #(merge-with v/sumar % suma))))))
+                       app elementos)))
            app
            (:tipo-hecho/mueve tipo-hecho))))
 
@@ -295,6 +306,21 @@
   (let [ctx (est/contexto estado refs)]
     (update-vals (:op/salidas contrato) #(e/evaluar % ctx))))
 
+;; --- Implementaciones (visión, criterio 6) ----------------------------------------
+
+(defn- implementacion
+  "Si el contrato nombra un puerto (`:op/impl`), la implementación que lo atiende
+  según el registro de la plataforma, llamada con las entradas: su resultado
+  queda como `impl` para los efectos, y su versión se anota (D48). Cambiar la
+  implementación es cambiar el registro, no el contrato. En el prototipo son de
+  prueba y no tienen efectos fuera del sistema."
+  [estado contrato refs traza]
+  (when-let [puerto (:op/impl contrato)]
+    (let [{:keys [fn version]} (or (get-in estado [:catalogo :implementaciones puerto])
+                                   (e/error! :sin-implementacion (str "Nada atiende el puerto " puerto) {:puerto puerto}))]
+      (swap! traza assoc-in [:reglas puerto] version)
+      ((requiring-resolve fn) (get refs 'entrada)))))
+
 (defn preparar
   "Lo que haría ejecutar `op` ahora, sin escribir nada: la respuesta del
   resolvedor y, si la operación está lista y cambia algo, los cambios. Lleva la
@@ -307,8 +333,10 @@
                :refs refs :reglas reglas :marca marca}]
     (if (and (= :listo (:estado resolucion)) (= :efecto (:op/tipo contrato)) (not (:al estado)))
       (try
-        (let [app (reduce efecto
-                          {:estado estado :op op :actor actor :refs refs :caso caso :traza (atom {})
+        (let [traza (atom {})
+              refs  (cond-> refs (:op/impl contrato) (assoc 'impl (implementacion estado contrato refs traza)))
+              app (reduce efecto
+                          {:estado estado :op op :actor actor :refs refs :caso caso :traza traza
                            :hechos [] :compromisos {} :nuevos #{} :saldos {} :entidades {}}
                           (:op/efectos contrato))]
           (assoc plan :app app :cambios (cerrar app reglas)))

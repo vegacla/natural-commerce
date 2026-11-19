@@ -1,0 +1,36 @@
+;; Canon de la capacidad Tributario (prototipo ampliado, D81).
+;;
+;; Etapa 10: los folios de documentos tributarios son un saldo (D63). La
+;; autorización del SII lo aumenta y cada documento emitido lo consume. Qué folio
+;; lleva un documento y que no se emita sin saldo lo dicen políticas legales
+;; (resources/legal/cl.edn), no este canon. No verificado por un experto (D42).
+
+{:tipos-hecho
+ [{:tipo-hecho/id      :tributario/autorizacion-folios
+   :tipo-hecho/datos   [:map
+                        [:documento :keyword]
+                        [:cantidad :cantidad]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :tributario/folios
+                         :clave {:documento hecho/documento}
+                         :suma  {:autorizados hecho/cantidad}}]}
+
+  ;; Un folio usado no vuelve: revertir la factura no lo devuelve.
+  {:tipo-hecho/id      :tributario/folio-usado
+   :tipo-hecho/datos   [:map
+                        [:documento :keyword]
+                        [:folio :cantidad]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :tributario/folios
+                         :clave {:documento hecho/documento}
+                         :suma  {:emitidos [:cantidad 1 :folio]}}]}]
+
+ :contratos
+ [{:op/id        :tributario/registrar-autorizacion-folios
+   :op/capacidad :tributario
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:documento :keyword]
+                  [:cantidad :cantidad]]
+   :op/efectos
+   [[:registra-hecho :tributario/autorizacion-folios entrada]]}]}

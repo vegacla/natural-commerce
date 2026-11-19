@@ -18,7 +18,7 @@
   {:concepto/id        :inventario/costo-unitario
    :concepto/version   1
    :concepto/tipo      :monto
-   :concepto/params    {:producto :ref :bodega :ref :metodo :clave}
+   :concepto/params    {:producto :ref :bodega :ref :cantidad :cantidad :metodo :clave}
    :concepto/calculo   nc.calculos/costo-unitario
    :concepto/evidencia :guardar}
 

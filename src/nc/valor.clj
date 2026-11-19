@@ -62,7 +62,11 @@
 (defn redondear
   ([x] (redondear x 0))
   ([x decimales]
-   (let [r (fn [n] (let [d (.setScale (bigdec n) (int decimales) java.math.RoundingMode/HALF_UP)]
+   ;; Una fracción como 222000/7 no tiene decimal exacto: se divide con escala.
+   (let [decimal (fn [n] (if (ratio? n)
+                           (.divide (bigdec (numerator n)) (bigdec (denominator n)) 20 java.math.RoundingMode/HALF_UP)
+                           (bigdec n)))
+         r (fn [n] (let [d (.setScale ^java.math.BigDecimal (decimal n) (int decimales) java.math.RoundingMode/HALF_UP)]
                      (if (zero? decimales) (.longValueExact d) d)))]
      (if (valor? x) (con-numero x (r (numero x))) (r x)))))
 

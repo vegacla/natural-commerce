@@ -33,6 +33,35 @@
     :promedio     (costo-promedio args ctx)
     :ultimo-costo (ultimo-costo args ctx)))
 
+(defn- capas
+  "Las recepciones del producto en la bodega, de la más antigua a la más nueva:
+  [cantidad precio]."
+  [{:keys [producto bodega]} ctx]
+  (for [h (sort-by #(.getTime ^Date (:hecho/en %)) ((:hechos ctx) {:tipo :compras/recepcion}))
+        :let [{p :producto b :bodega q :cantidad orden :orden} (:hecho/datos h)]
+        :when (and (= producto p) (= bodega b))]
+    [(v/numero q) (get-in ((:buscar ctx) orden) [:hecho/datos :precio-unitario])]))
+
+(defn costo-fifo
+  "El costo unitario de lo que sale según FIFO: las unidades más antiguas
+  primero. Salta lo que ya salió (los despachos de la bodega) y promedia el costo
+  de las `cantidad` unidades siguientes (una, si no se dice). Reemplaza al costo
+  promedio en la versión 2 del concepto (E22)."
+  [{:keys [producto bodega cantidad] :as args} ctx]
+  (let [salidas (->> ((:hechos ctx) {:tipo :ventas/despacho})
+                     (filter #(= [producto bodega] ((juxt :producto :bodega) (:hecho/datos %))))
+                     (map #(v/numero (get-in % [:hecho/datos :cantidad])))
+                     (reduce + 0))
+        pedir   (if cantidad (v/numero cantidad) 1)]
+    (loop [[[q precio] & mas] (capas args ctx), saltar salidas, falta pedir, costo nil]
+      (cond
+        (zero? falta)  (v/redondear (v/dividir costo pedir))
+        (nil? precio)  (when costo (v/redondear (v/dividir costo (- pedir falta))))
+        (>= saltar q)  (recur mas (- saltar q) falta costo)
+        :else          (let [toma (min falta (- q saltar))
+                             parte (v/multiplicar toma precio)]
+                         (recur mas 0 (- falta toma) (if costo (v/sumar costo parte) parte)))))))
+
 ;; --- Contabilidad ----------------------------------------------------------------
 
 (defn periodo

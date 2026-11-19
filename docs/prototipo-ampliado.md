@@ -127,7 +127,7 @@ Continúan la numeración de `prototipo-minimo.md`. La Empresa A es el comercio 
 7. **Bitácora, plataforma y maestros.** Hecha (ver `mediciones.md`). Primero la bitácora y la garantía estructural (E27): las etapas siguientes corren la verificación de invariantes al final de cada escenario. Luego plan contratado y entidades (E10, E11). Las pruebas de ventas se escriben aquí, antes que sus contratos (E25).
 8. **Formas que faltan.** Hecha (ver `mediciones.md`). Fija, sugiere, limita e inicia; conflictos (E12, E19, E21).
 9. **Verbos y tiempo.** Hecha (ver `mediciones.md`). Revertir, transferir y reducir varios; calendario; MARCO por iniciativa propia; período contable (E13, E15, E16, E17, E18).
-10. **Legal y contabilidad.** Política legal, folios, asiento y sustitución de implementaciones (E14, E22).
+10. **Legal y contabilidad.** Hecha (ver `mediciones.md`). Política legal, folios, asiento y sustitución de implementaciones (E14, E22).
 11. **Composición en profundidad** (E20).
 12. **SARA con LLM y complejidad visible** (E23, E24).
 13. **Volumen y cobertura** (E26 y la sección 7).

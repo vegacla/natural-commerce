@@ -1,0 +1,8 @@
+;; Registro de implementaciones de la plataforma (visión, criterio 6). Un
+;; contrato nombra un puerto con `:op/impl`; aquí se dice qué función lo atiende
+;; y en qué versión. Cambiar una implementación es cambiar esta línea, con un
+;; despliegue: ningún contrato cambia, y cada hecho guarda la versión que lo
+;; produjo (D48).
+
+{:implementaciones
+ {:tributario/envio-dte {:fn nc.sii/enviar-v1 :version 1}}}

@@ -57,6 +57,15 @@
              :when c]
          c)))
 
+(declare publicar!)
+
+(defn instalar-legal!
+  "Publica un paquete legal (las políticas de un régimen tributario) en una
+  empresa, como plataforma (D5). Devuelve lo que pasó con cada política."
+  [estado politicas]
+  (mapv (fn [p] (assoc (publicar! estado p {:autor :plataforma}) :politica (:politica/id p)))
+        politicas))
+
 (defn publicar!
   "Publica una política si no choca con las vigentes. `:autor` es :empresa (por
   omisión) o :plataforma: una empresa no publica políticas legales (D5)."

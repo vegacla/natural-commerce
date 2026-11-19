@@ -10,8 +10,13 @@
 ;; Etapa 9: despachar (un hecho reduce la entrega y la reserva, T9, con costo de
 ;; un cálculo algorítmico), facturar, cobrar varias facturas con un pago (T9),
 ;; vender en mesón (hecho compuesto, D62) y revertir una factura con una nota de
-;; crédito (D16). Lo tributario de la factura llega en la etapa 10, como
-;; política legal, sin cambiar este contrato.
+;; crédito (D16).
+;;
+;; Etapa 10: la factura recibe IVA, folio y cuentas como entradas opcionales, que
+;; llenan políticas (legales o de la empresa); el contrato no conoce la ley. Su
+;; asiento va dentro del hecho, así que una nota de crédito lo revierte. El envío
+;; al SII pasa por un puerto (`:op/impl`) que atiende una implementación
+;; registrada. Lo que se cobra se abre por el total, con IVA.
 
 {:entidades
  [{:entidad/tipo   :cliente
@@ -45,12 +50,21 @@
    :tipo-hecho/datos   [:map
                         [:pedido [:ref :ventas/pedido]]
                         [:monto :monto]
+                        [:iva {:optional true} :monto]
+                        [:folio {:optional true} :cantidad]
                         [:fecha :fecha]
-                        [:vencimiento :fecha]]
+                        [:vencimiento :fecha]
+                        [:envio {:optional true} :string]
+                        [:asiento {:optional true} [:map-of :keyword :any]]]
    :tipo-hecho/regimen :solo-agregar
    :tipo-hecho/mueve   [{:saldo :ventas/facturado
                          :clave {:cliente [:-> hecho/pedido :hecho/datos :cliente]}
-                         :suma  {:monto hecho/monto}}]}
+                         :suma  {:monto hecho/monto}}
+                        ;; Cada línea del asiento mueve el saldo de su cuenta.
+                        {:saldo :contabilidad/cuenta
+                         :cada  hecho/asiento
+                         :clave {:cuenta cada/cuenta}
+                         :suma  {:debe cada/debe :haber cada/haber}}]}
 
   {:tipo-hecho/id      :ventas/nota-credito
    :tipo-hecho/datos   [:map
@@ -84,7 +98,9 @@
    :concepto/tipo    :monto
    :concepto/params  {:cliente :ref}
    :concepto/forma   [:- [:-> cliente :cliente/cupo]
-                         [:suma [:-> cada :compromiso/saldo :monto]
+                         [:suma [:si [:= [:-> cada :compromiso/estado] :extinguido]
+                                     0
+                                     [:-> cada :compromiso/saldo :monto]]
                                 [:compromisos {:tipo :ventas/por-cobrar :deudor cliente}]]]}]
 
  :contratos
@@ -166,7 +182,7 @@
       :bodega         entrada/bodega
       :cantidad       entrada/cantidad
       :costo-unitario [:inventario/costo-unitario {:producto entrada/producto :bodega entrada/bodega
-                                                   :metodo entrada/metodo}]}
+                                                   :cantidad entrada/cantidad :metodo entrada/metodo}]}
      :como despacho]
     [:reduce-compromiso entrada/entrega {:cantidad entrada/cantidad}]
     [:reduce-compromiso [:compromisos {:tipo :inventario/reservado :raiz caso/id :estado :activo}]
@@ -175,16 +191,46 @@
   {:op/id        :ventas/emitir-factura
    :op/capacidad :ventas
    :op/tipo      :efecto
+   :op/impl      :tributario/envio-dte
    :op/entradas  [:map
                   [:pedido [:ref :ventas/pedido]]
                   [:monto :monto]
                   [:fecha :fecha]
-                  [:vencimiento :fecha]]
-   :op/salidas   {:factura factura/id}
+                  [:vencimiento :fecha]
+                  [:iva {:optional true} :monto]
+                  [:folio {:optional true} :cantidad]
+                  [:cuenta-clientes {:optional true} :keyword]
+                  [:cuenta-ventas {:optional true} :keyword]
+                  [:cuenta-iva {:optional true} :keyword]]
+   :op/salidas   {:factura factura/id :cobro cobro/id}
    :op/efectos
-   [[:registra-hecho :ventas/factura entrada :como factura]
-    [:modifica-compromiso [:compromisos {:tipo :ventas/por-cobrar :origen entrada/pedido}]
-                          {:estado :activo :vence entrada/vencimiento}]]}
+   [[:registra-hecho :ventas/factura
+     {:pedido      entrada/pedido
+      :monto       entrada/monto
+      :iva         entrada/iva
+      :folio       entrada/folio
+      :fecha       entrada/fecha
+      :vencimiento entrada/vencimiento
+      :envio       impl/seguimiento
+      :asiento     [:si entrada/cuenta-clientes
+                    {:clientes {:cuenta entrada/cuenta-clientes
+                                :debe   [:+ entrada/monto [:si entrada/iva entrada/iva 0]]
+                                :haber  0}
+                     :ventas   {:cuenta entrada/cuenta-ventas :debe 0 :haber entrada/monto}
+                     :iva      {:cuenta entrada/cuenta-iva :debe 0 :haber [:si entrada/iva entrada/iva 0]}}
+                    nil]}
+     :como factura]
+    [:cuando entrada/folio
+     [:registra-hecho :tributario/folio-usado {:documento :factura :folio entrada/folio}]]
+    [:extingue-compromiso [:compromisos {:tipo :ventas/por-cobrar :origen entrada/pedido :estado :latente}]
+                          :facturado]
+    [:abre-compromiso {:tipo     :ventas/por-cobrar
+                       :deudor   [:-> entrada/pedido :hecho/datos :cliente]
+                       :acreedor empresa
+                       :vence    entrada/vencimiento
+                       :origen   factura/id
+                       :objeto   {:monto [:+ entrada/monto [:si entrada/iva entrada/iva 0]]}}
+     :como cobro]]}
 
   {:op/id        :ventas/registrar-cobro
    :op/capacidad :ventas
@@ -219,7 +265,7 @@
       :bodega         entrada/bodega
       :cantidad       entrada/cantidad
       :costo-unitario [:inventario/costo-unitario {:producto entrada/producto :bodega entrada/bodega
-                                                   :metodo nil}]}]
+                                                   :cantidad entrada/cantidad :metodo nil}]}]
     [:registra-hecho :ventas/cobro-contado {:monto [:* entrada/cantidad entrada/precio-unitario]}]]}
 
   {:op/id        :ventas/emitir-nota-credito
@@ -235,7 +281,8 @@
                                            :fecha   entrada/fecha}
      :como nota]
     [:revierte-hecho entrada/factura]
-    [:reduce-compromiso [:compromisos {:tipo   :ventas/por-cobrar
-                                       :origen [:-> entrada/factura :hecho/datos :pedido]
-                                       :estado :activo}]
-                        {:monto [:-> entrada/factura :hecho/datos :monto]}]]}]}
+    [:reduce-compromiso [:compromisos {:tipo :ventas/por-cobrar :origen entrada/factura :estado :activo}]
+                        {:monto [:+ [:-> entrada/factura :hecho/datos :monto]
+                                    [:si [:-> entrada/factura :hecho/datos :iva]
+                                         [:-> entrada/factura :hecho/datos :iva]
+                                         0]]}]]}]}

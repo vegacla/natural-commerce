@@ -117,4 +117,24 @@
  {:nombre "un saldo se lee por su clave"
   :archivo "src/nc/almacen.clj"
   :buscar "{:xt/id (xt-id :saldos empresa {:saldo/concepto (first id) :saldo/clave (second id)})}"
-  :poner "{:saldo/concepto (first id) :saldo/clave (second id)}"}]
+  :poner "{:saldo/concepto (first id) :saldo/clave (second id)}"}
+ {:nombre "el asiento no mueve las cuentas"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "(if (contains? mueve :cada)"
+  :poner "(if false"}
+ {:nombre "la versión de la implementación no se anota"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "(swap! traza assoc-in [:reglas puerto] version)"
+  :poner "nil"}
+ {:nombre "el registro de implementaciones se ignora"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "((requiring-resolve fn) (get refs 'entrada))"
+  :poner "((requiring-resolve 'nc.sii/enviar-v1) (get refs 'entrada))"}
+ {:nombre "el paquete legal se instala como empresa"
+  :archivo "src/nc/politicas.clj"
+  :buscar "(publicar! estado p {:autor :plataforma})"
+  :poner "(publicar! estado p {:autor :empresa})"}
+ {:nombre "redondear no admite fracciones"
+  :archivo "src/nc/valor.clj"
+  :buscar "(.divide (bigdec (numerator n)) (bigdec (denominator n)) 20 java.math.RoundingMode/HALF_UP)"
+  :poner "(bigdec n)"}]

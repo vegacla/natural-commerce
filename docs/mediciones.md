@@ -456,3 +456,51 @@ Ocho nuevas en `scripts/mutaciones.edn` (revertir sin deshacer saldos, revertir 
 ### Pendiente
 
 - Lo tributario de la factura, los folios y el asiento contable (etapa 10).
+
+## Etapa 10: legal, contabilidad y sustitución (2026-11-19)
+
+Escenarios E14 y E22.
+
+### Líneas del núcleo
+
+| Archivo | Qué cambió | Líneas |
+|---|---|---|
+| `src/nc/ejecutor.clj` | Un saldo por elemento de una colección (asiento); puertos e implementaciones (D95, D96) | +23 |
+| `src/nc/calculos.clj` | Costo FIFO | +27 |
+| `src/nc/sii.clj` | Dos implementaciones de prueba del envío al SII | 16 |
+| `src/nc/politicas.clj` | Instalar un paquete legal | +7 |
+| `src/nc/esquema.clj`, `catalogo.clj`, `valor.clj` | `:cada`, `:op/impl` como puerto, fuente y verificación de una política; registro de implementaciones; redondear fracciones | +10 |
+| **Total del núcleo de MARCO** | | **2.431** (antes 2.348) |
+
+SARA: sin cambios.
+
+Pruebas: 2.092 líneas; 3 pruebas nuevas. Las 70 pruebas, con 627 comprobaciones, pasan.
+
+### Líneas por operación y por regla
+
+- Una operación nueva: registrar autorización de folios (8 líneas de contrato).
+- La factura ganó IVA, folio, cuentas, asiento y envío sin conocer la ley: 41 líneas más de contrato en `ventas.edn`, que son entradas opcionales y efectos, no reglas.
+- La ley son datos: 33 líneas en `resources/legal/cl.edn` (IVA, folio correlativo, sin folios no se emite).
+- Sustituir una implementación: una línea en `resources/canon/implementaciones.edn`, o una versión nueva de un concepto. Cero líneas de contrato.
+
+### Rodeos al almacén
+
+Ninguno.
+
+### Correcciones
+
+- Humanas: ninguna.
+- Del agente, detectadas por las pruebas: redondear una fracción periódica, una palabra clave que no se puede leer (`:cuenta/1101`) y un paréntesis de más. Al cambiar la factura, dos pruebas de la etapa 9 buscaban lo que se cobra por el pedido en vez de por la factura.
+
+### Mutaciones
+
+Cinco nuevas (el asiento no mueve las cuentas, la versión de la implementación no se anota, el registro de implementaciones se ignora, el paquete legal se instala como empresa, redondear sin fracciones). Las 34 son detectadas, en 170 segundos.
+
+### Hallazgos de la etapa
+
+- **La ley entró sin tocar el contrato de la factura.** El contrato declara qué recibe (IVA, folio, cuentas, todas opcionales); la ley y la empresa dicen cuánto valen, con "fija". Es D46 funcionando en el caso más denso: significado, empresa y ley en tres lugares distintos.
+- **El saldo de lo que se cobra obligó a abrir otro compromiso.** El pedido deja por cobrar el neto; la factura, el total con IVA. Como un compromiso no cambia de saldo sin reducirse (D56), la factura extingue uno y abre otro. Es más honesto: lo que se debe nace con la factura.
+- **Un tipo de hecho necesitaba mover saldos por colección** (`:cada`, D95). Es la única extensión del modelo en la etapa, y la pidió el asiento, que es el centro de la contabilidad.
+- **Dónde va un efecto decide qué revierte.** El asiento va dentro de la factura, así que la nota de crédito lo revierte; el folio va en un hecho aparte, así que no vuelve (D94). Fue una decisión de modelado, no de código.
+- **Sustituir es cambiar un dato.** El contrato nombra un puerto; el registro, la función. Los hechos anteriores conservan su valor y su versión (D48).
+- **Sin probar:** un envío real al SII (necesita salida diferida), libros y declaraciones, retenciones, notas de débito, y que el balance cuadre con varias monedas.
