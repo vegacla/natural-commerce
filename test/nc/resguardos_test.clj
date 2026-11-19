@@ -42,6 +42,17 @@
                       (str f))]
       (is (empty? culpables)))))
 
+;; --- D100: el modelo de lenguaje no toca MARCO ------------------------------------
+
+(deftest solo-sara-habla-con-el-modelo
+  (testing "solo nc.sara.claude usa el SDK de Anthropic"
+    (is (= ["claude.clj"] (vec (for [f (fuentes) :when (re-find #"com\.anthropic" (slurp f))] (.getName f))))))
+  (testing "y no conoce nada del ERP: no requiere ningún módulo nc"
+    (is (not (re-find #"\[nc\." (slurp (io/file "src/nc/sara/claude.clj"))))))
+  (testing "SARA con lenguaje llega a MARCO solo por ejecutar!, que evalúa y anota en la bitácora"
+    (let [fuente (slurp (io/file "src/nc/sara/lenguaje.clj"))]
+      (is (not (re-find #"ej/(aplicar!|preparar)|alm/" fuente))))))
+
 ;; --- 2 y 3. La empresa es obligatoria y no se pisa -----------------------------
 
 (def ^:private funciones-con-empresa

@@ -1,7 +1,7 @@
 # Natural Commerce — Registro de decisiones
 
 Actualizado: 2026-11-19. Origen: sesión de descubrimiento sobre "Visión funcional de SARA y MARCO".
-Estado: modelo cerrado; prototipo mínimo hecho (etapas 1 a 6, E1 a E9 y SARA mínima); prototipo ampliado aprobado (D81), etapas 7 a 11 hechas.
+Estado: modelo cerrado; prototipo mínimo hecho (etapas 1 a 6, E1 a E9 y SARA mínima); prototipo ampliado aprobado (D81), etapas 7 a 12 hechas.
 Documentos relacionados: `prototipo-minimo.md`, `prototipo-ampliado.md`, `analisis-universo-operaciones.md`, `notacion-v0.md`.
 
 ## 0. El modelo en una página
@@ -123,6 +123,7 @@ Documentos relacionados: `prototipo-minimo.md`, `prototipo-ampliado.md`, `analis
 | D97 | Los pasos de un plan se deducen en profundidad: de los requisitos del objetivo y de los de cada paso deducido. Un requisito deja pasos de tres formas: un "exige", con la operación que registra el hecho (D71); una entrada obligatoria que falta, con la operación que la entrega como salida del mismo nombre y crea algo de su tipo (las entidades no se deducen); y un "limita" excedido que declara con qué se cubre lo que falta (`:cubre-con`, con `faltante`). Con `:parcial`, lo que cabe bajo el máximo va antes y el paso espera la cobertura con el resto. Un límite con cobertura deja lo que excede pendiente, no prohibido. Cada paso hereda las entradas propias del paso que lo necesita, y una salida que ya entrega un paso anterior no se vuelve a producir. Como el caso aparece al ejecutar (el de un pedido nace al registrarlo), el plan se vuelve a deducir en cada avance: un paso que ya no hace falta queda satisfecho. | Precisa D76, que deducía a un solo nivel. Con qué se cubre una falta (comprar, recibir, trasladar) es forma de trabajar de la empresa, así que va en su política (D46), no en el contrato ni en MARCO. Prever lo que habrá después de ejecutar exigiría simular los efectos; volver a deducir con el estado real es más simple y siempre exacto. |
 | D98 | Un objetivo de estado deseado (D33) es que se cumpla un compromiso de un tipo (`{:cumplir tipo}`). Se alcanza con una operación que reduce o extingue un compromiso de ese tipo recibido como entrada; si hay varias en el plan contratado, se usa la primera y las demás quedan como alternativas. Sin ninguna, no hay plan y se dice por qué. Desde ahí, se planea y avanza como un objetivo de operación (D51). | Qué operación cumple qué compromiso se lee de los efectos declarados, como en STRIPS (D12): no hay que escribirlo aparte. |
 | D99 | Una orden reduce la necesidad por la cantidad que ordena; ya no la extingue entera. Con `:solicitudes` atiende varias necesidades, repartidas como cualquier colección (D89). Una necesidad se cubre con varias órdenes y una orden atiende varias. Una entrada puede ser una colección de referencias (`[:vector [:ref tipo]]`), y el contrato revisa cada una (D65). | Es M4 (visión 6.5): las necesidades y las compras son de muchas a muchas. Una orden por todo lo pedido sigue extinguiendo la necesidad por cumplimiento (D69). |
+| D100 | SARA con un modelo de lenguaje: el modelo solo elige una operación del plan de la empresa y sus entradas, como texto que SARA lee igual que un formulario (D78), o responde con texto. SARA pasa lo elegido a MARCO sin confirmación y con origen `:sara`, y dice a la persona lo que MARCO respondió. Ninguna herramienta recibe el actor, ninguna confirma, y publicar políticas o cambiar el plan no es una operación. Confirmar es una acción del cliente, no una frase. En una operación irreversible (revierte, extingue o transfiere, desactiva) con una referencia a un documento que tiene más de una opción, SARA pregunta a la persona antes de llamar a MARCO, y solo cuenta una elección entre las opciones que ofreció. El adaptador del modelo (`nc.sara.claude`) no conoce el ERP. | Cumple la visión (sección 4) y el criterio 5 sin confiar en el modelo: lo que diga no cambia quién actúa ni qué se permite, y la bitácora lo demuestra después (D82). Que la ambigüedad se decida por estructura (irreversible y con varias opciones) y no por el modelo hace la regla verificable. |
 
 ## 2. Criterios para elegir stack
 
@@ -159,6 +160,7 @@ Documentos relacionados: `prototipo-minimo.md`, `prototipo-ampliado.md`, `analis
 
 ## 5. Pendiente
 
-- Prototipo ampliado (D81): etapas 12 y 13.
+- Prototipo ampliado (D81): etapa 13.
+- Correr E23 con Claude de verdad (`nc.lenguaje-claude-test`, necesita `ANTHROPIC_API_KEY`) y medir las elecciones del modelo.
 - Tres condiciones de D79 (log durable y replicado, almacén de objetos con respaldo ensayado, soporte), antes de datos de clientes. La cuarta se resolvió con D80.
 - Verificar con un experto el paquete legal chileno inicial (`resources/legal/cl.edn`, D93).

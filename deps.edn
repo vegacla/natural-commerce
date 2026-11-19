@@ -2,7 +2,9 @@
  :deps  {org.clojure/clojure {:mvn/version "1.12.0"}
          metosin/malli       {:mvn/version "0.20.3"}
          com.xtdb/xtdb-api   {:mvn/version "2.2.0"}
-         com.xtdb/xtdb-core  {:mvn/version "2.2.0"}}
+         com.xtdb/xtdb-core  {:mvn/version "2.2.0"}
+         ;; SARA con LLM (etapa 12): el único lugar que habla con un modelo.
+         com.anthropic/anthropic-java {:mvn/version "3.10.0"}}
  :aliases
  {;; Opciones de la JVM que exige un nodo XTDB en el mismo proceso (JDK 21).
   :xtdb {:jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"

@@ -171,6 +171,35 @@
   :archivo "src/nc/ejecutor.clj"
   :buscar "(let [nuevos (if (sequential? x) (repartir app cs cuanto) [(reducido app (first cs) cuanto)])]"
   :poner "(let [nuevos (if (sequential? x) (repartir app cs cuanto) [(extinguir app (first cs) :cumplimiento)])]"}
+ ;; Etapa 12: SARA con lenguaje (D100).
+ {:nombre "SARA se confirma a sí misma"
+  :archivo "src/nc/sara/lenguaje.clj"
+  :buscar "(ej/ejecutar! estado actor operacion entradas {:origen :sara})))"
+  :poner "(ej/ejecutar! estado actor operacion entradas {:origen :sara :confirmado true})))"}
+ {:nombre "SARA no anota su origen"
+  :archivo "src/nc/sara/lenguaje.clj"
+  :buscar "(ej/ejecutar! estado actor operacion entradas {:origen :sara})))"
+  :poner "(ej/ejecutar! estado actor operacion entradas {})))"}
+ {:nombre "lo irreversible no se pregunta"
+  :archivo "src/nc/sara/lenguaje.clj"
+  :buscar "(when (irreversible? estado op)"
+  :poner "(when false"}
+ {:nombre "cualquier valor cuenta como elección"
+  :archivo "src/nc/sara/lenguaje.clj"
+  :buscar "(some #(= valor (first %)) opciones)"
+  :poner "true"}
+ {:nombre "el modelo ve todo el catálogo"
+  :archivo "src/nc/sara/lenguaje.clj"
+  :buscar "(vec (for [[op c] (est/operaciones estado)]"
+  :poner "(vec (for [[op c] (get-in estado [:catalogo :contratos])]"}
+ {:nombre "el modelo usa una operación que no se le ofreció"
+  :archivo "src/nc/sara/lenguaje.clj"
+  :buscar "(if-let [h (first (filter #(= herramienta (:nombre %)) hs))]"
+  :poner "(if-let [h (or (first (filter #(= herramienta (:nombre %)) hs)) {:operacion :compras/aprobar})]"}
+ {:nombre "el adaptador del modelo conoce MARCO"
+  :archivo "src/nc/sara/claude.clj"
+  :buscar "(:import (com.anthropic.client AnthropicClient)"
+  :poner "(:require [nc.ejecutor])\n  (:import (com.anthropic.client AnthropicClient)"}
  {:nombre "una colección de referencias no se revisa"
   :archivo "src/nc/resolvedor.clj"
   :buscar "(some #(problema-de-referencia estado (second forma) %) valor)"
