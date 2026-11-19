@@ -1,6 +1,6 @@
 (ns nc.lenguaje-claude-test
   "E23 con Claude de verdad. Corre solo si hay ANTHROPIC_API_KEY; si no, se
-  omite y lo dice. Cuesta dinero: unas veinte llamadas a Claude Opus 5.5.
+  omite y lo dice. Cuesta dinero: una llamada a Claude Haiku 5.5 por frase (cinco).
 
   No exige que el modelo elija bien: eso se mide (sección 8 del prototipo
   ampliado) y se imprime. Exige lo que no depende del modelo: que nada se

@@ -558,7 +558,7 @@ Escenarios E23 y E24. E23 se probó con un modelo guionado; la corrida con Claud
 | Archivo | Qué hace | Líneas |
 |---|---|---|
 | `src/nc/sara/lenguaje.clj` | Herramientas desde el plan y los contratos; turno, elegir y confirmar; pregunta ante lo irreversible y ambiguo (D100) | 172 |
-| `src/nc/sara/claude.clj` | El modelo con Claude Opus 5.5 por el SDK de Java, con reintento del servidor ante un rechazo | 66 |
+| `src/nc/sara/claude.clj` | El modelo con Claude Haiku 5.5 por el SDK de Java | 61 |
 
 El núcleo de MARCO no cambió. Ninguna de las 238 líneas nuevas de SARA es propia de una operación: las herramientas salen del contrato y las respuestas, del resolvedor y del formulario (D78). Dependencia nueva: `com.anthropic/anthropic-java` 3.10.0.
 

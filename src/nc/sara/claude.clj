@@ -3,18 +3,18 @@
   que arma nc.sara.lenguaje y devuelve la herramienta elegida o el texto. No
   sabe nada del ERP: las herramientas y el sistema vienen de SARA.
 
-  Usa Claude Opus 5.5 con esfuerzo medio. Si el modelo rechaza la petición, el
-  servidor reintenta con otro modelo (fallbacks), y si aun así la rechaza, SARA
-  lo dice como texto."
+  Usa Claude Haiku 5.5: elegir una operación y llenar sus entradas no necesita
+  un modelo mayor, y lo que importa lo decide MARCO. Si el modelo rechaza la
+  petición, SARA lo dice como texto."
   (:import (com.anthropic.client AnthropicClient)
            (com.anthropic.client.okhttp AnthropicOkHttpClient)
            (com.anthropic.core JsonValue)
-           (com.anthropic.models.messages ContentBlock Message MessageCreateParams OutputConfig Tool$InputSchema$Properties$Builder
-                                          OutputConfig$Effort Tool Tool$InputSchema Tool$InputSchema$Properties
+           (com.anthropic.models.messages ContentBlock Message MessageCreateParams Tool$InputSchema$Properties$Builder
+                                          Tool Tool$InputSchema Tool$InputSchema$Properties
                                           ToolUseBlock)
            (java.util Map)))
 
-(def modelo-por-defecto "claude-opus-5-5")
+(def modelo-por-defecto "claude-haiku-5-5")
 
 (defn- herramienta ^Tool [{:keys [nombre descripcion campos]}]
   (let [props (reduce (fn [^Tool$InputSchema$Properties$Builder b {:keys [nombre descripcion opciones]}]
@@ -36,11 +36,7 @@
   (let [b (-> (MessageCreateParams/builder)
               (.model ^String modelo)
               (.maxTokens 16000)
-              (.system ^String sistema)
-              (.outputConfig (-> (OutputConfig/builder) (.effort OutputConfig$Effort/MEDIUM) (.build)))
-              ;; Si el modelo rechaza, el servidor reintenta con otro.
-              (.putAdditionalHeader "anthropic-beta" "server-side-fallback-2026-07-01")
-              (.putAdditionalBodyProperty "fallbacks" (JsonValue/from "default")))]
+              (.system ^String sistema))]
     (doseq [h herramientas] (.addTool b (herramienta h)))
     (doseq [{:keys [rol texto]} mensajes]
       (if (= :persona rol) (.addUserMessage b ^String texto) (.addAssistantMessage b ^String texto)))
