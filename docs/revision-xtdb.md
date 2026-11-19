@@ -65,7 +65,7 @@ El nodo que consulta no guarda nada propio y se puede reemplazar. Lo que todaví
 
 La revisión no encuentra impedimentos para seguir con XTDB. Encuentra condiciones que deben cumplirse antes de guardar datos de clientes:
 
-1. **Log durable y replicado.** Kafka u otro equivalente, no el log local. Hoy el log guarda todo lo que no pasó a un bloque.
+1. **Log durable y replicado.** Kafka u otro equivalente, no el log local. Hoy el log guarda todo lo que no pasó a un bloque. Camino elegido (D106): un nodo con log local sobre un disco durable y replicado, y cierre de bloque frecuente; sin Kafka.
 2. **Almacén de objetos con versionado** y un procedimiento de respaldo ensayado: almacenamiento primero, log después, con una restauración de prueba periódica.
 3. **Suscripción de soporte**, al menos Developer Edition, por el riesgo de proveedor único.
 4. ~~**Separación por empresa estructural.** Evaluar las bases múltiples de XTDB 2.1 (hallazgo de E9).~~ Evaluada y descartada (D80): se mantiene una sola base y se refuerza el filtrado con resguardos en código y reglas.
