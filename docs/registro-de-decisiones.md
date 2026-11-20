@@ -169,7 +169,7 @@ Documentos relacionados: `prototipo-minimo.md`, `prototipo-ampliado.md`, `analis
 
 ## 5. Pendiente
 
-- Búsquedas por tipo (`{:hecho/tipo t}`): siguen recorriendo la tabla con los datos de todas las empresas, y en disco con 49 empresas pasaron de 1 a 25–33 ms. Están en el camino de cada venta, porque el costo unitario busca las recepciones por tipo. Una lista por tipo sería larga: habría que indexar por tipo y otro campo (producto, bodega), o guardar el costo como saldo.
+- Búsquedas por tipo (`{:hecho/tipo t}`): siguen recorriendo la tabla con los datos de todas las empresas, y en disco con 49 empresas pasaron de 1 a 25–33 ms. Las usan los métodos de costo FIFO y último costo (no el promedio, que lee el saldo de existencia), las opciones de un formulario de SARA y el tiempo al buscar lo que vence. Una lista por tipo sería larga: habría que indexar por tipo y otro campo (producto, bodega), o llevar las capas de costo como saldo.
 - En disco, leer por llave primaria cuesta de 2 a 7 ms (en memoria, 0,3), y cada operación escribe su decisión en el log. La consulta de estado tarda unos 60 ms aunque no crezca con otras empresas. Medir en el disco del servidor de D106 antes de optimizar.
 - Una empresa que despacha sin existencia retira `:defecto/salir-de-lo-que-hay` (D107), pero el despacho sigue sin costo y MARCO da un error de datos (D105). Le falta una forma de dar el costo, por ejemplo el último conocido o uno que fije su política.
 - Tres condiciones de D79 (log durable y replicado, almacén de objetos con respaldo ensayado, soporte), antes de datos de clientes. La condición 1 tiene camino (D106), sin implementar. La suscripción de soporte (condición 3) no se toma por ahora (2026-11-19). La cuarta se resolvió con D80.

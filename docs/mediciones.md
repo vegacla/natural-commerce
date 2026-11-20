@@ -866,7 +866,7 @@ El núcleo de MARCO (resolvedor, ejecutor, almacén, estado) no cambió. Plan y 
 - **Con el índice, los hechos de un caso no dependen de las otras empresas.** Con el nodo reabierto tardan 9 ms (antes 25). Raíz y origen no crecían porque la tabla de compromisos es chica (las ventas en mesón no abren compromisos); con el índice cuestan dos lecturas por llave, unos 4 a 9 ms.
 - **En disco, el piso es la lectura por `_id`:** de 2 a 7 ms, contra 0,3 en memoria. La primera versión leía cada documento por separado (un caso de 4 hechos, 5 lecturas: 15 a 22 ms); leerlos con una sola consulta `_id IN (...)` la dejó en 9 a 15.
 - **La consulta de estado no crece con las otras empresas** (37 ms con X sola en disco, 63 con las otras): escribe su decisión en el log del disco en cada llamada.
-- **Por tipo sigue creciendo** (de 1 a 25–33 ms): queda pendiente.
+- **Por tipo sigue creciendo** (de 1 a 25–33 ms): queda pendiente. No está en cada venta: el costo promedio, el método por defecto, lee el saldo de existencia; buscan por tipo FIFO, último costo, las opciones de SARA y el tiempo.
 - Las mediciones con X sola pagan el calentamiento del nodo en disco: son la primera serie. Comparar entre filas de una misma tabla, no al milisegundo.
 
 ### Líneas
