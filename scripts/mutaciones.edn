@@ -228,6 +228,19 @@
   :archivo "src/nc/sara.clj"
   :buscar "(every? #(and (not (contains? % :politica/cuando))"
   :poner "(every? #(and true"}
+ ;; D109: índices propios para las búsquedas que no van por _id.
+ {:nombre "escribir! no actualiza los índices"
+  :archivo "src/nc/almacen.clj"
+  :buscar "(indices-nuevos alm empresa d {:hechos hechos :compromisos compromisos})"
+  :poner "nil"}
+ {:nombre "el índice pierde lo anterior"
+  :archivo "src/nc/almacen.clj"
+  :buscar "ids   (into antes (comp"
+  :poner "ids   (into [] (comp"}
+ {:nombre "buscar recorre aunque haya índice"
+  :archivo "src/nc/almacen.clj"
+  :buscar "(if-let [[campo valor] (por-indice tabla filtro)]"
+  :poner "(if-let [[campo valor] nil]"}
  {:nombre "el adaptador del modelo conoce MARCO"
   :archivo "src/nc/sara/claude.clj"
   :buscar "(:import (com.anthropic.client AnthropicClient)"

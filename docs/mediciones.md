@@ -839,3 +839,44 @@ El núcleo de MARCO (resolvedor, ejecutor, almacén, estado) no cambió. Plan y 
 ### Pruebas y mutaciones
 
 90 pruebas con 794 comprobaciones, todas pasan. Seis mutaciones nuevas: una por defecto pide elegir al cambiar el plan, el plan no la retira, no se instalan, una cambiada cuenta como intacta, SARA ofrece lo reservado a MARCO, una reserva con condición oculta la operación. Las 59 se detectan. Se corrigió el patrón de «el paquete legal se instala como empresa», que con el código nuevo mutaba otra función.
+
+## Búsquedas en disco e índices propios (D109, 2026-11-19)
+
+`nc.disco-test`: una empresa chica (X) y 49 empresas más con 8 días de operación cada una, unos 24.000 hechos en total, todo por MARCO, en un nodo con log y almacenamiento en disco local. Carga: unos 90 s. Mediana de 25 búsquedas de X, en ms.
+
+**Antes, recorriendo la tabla:**
+
+| Momento | por `_id` | hechos de un caso | raíz | origen | por tipo | consulta de estado |
+|---|---|---|---|---|---|---|
+| X sola | 2,0 | 2,1 | 1,4 | 1,5 | 1,3 | 22,5 |
+| Con las otras, en memoria | 0,3 | 3,7 | 0,4 | 0,4 | 4,6 | 19,4 |
+| Con las otras, en un bloque en disco | 6,3 | 44,8 | 2,1 | 2,7 | 33,1 | 61,7 |
+| Nodo reabierto | 3,3 | 25,5 | 2,3 | 1,9 | 28,3 | 79,2 |
+
+**Con los índices de D109:**
+
+| Momento | por `_id` | hechos de un caso | raíz | origen | por tipo | consulta de estado |
+|---|---|---|---|---|---|---|
+| X sola | 3,0 | 4,3 | 3,1 | 3,1 | 1,1 | 37,1 |
+| Con las otras, en memoria | 0,4 | 1,2 | 0,8 | 0,6 | 4,8 | 11,0 |
+| Con las otras, en un bloque en disco | 6,7 | 14,7 | 8,6 | 4,0 | 32,6 | 63,8 |
+| Nodo reabierto | 2,1 | 9,2 | 5,4 | 3,9 | 24,7 | 62,6 |
+
+- **Los metadatos de los bloques no ayudan.** En disco, buscar por un campo que no es `_id` crece con los datos de las otras empresas, como en memoria (E26).
+- **Con el índice, los hechos de un caso no dependen de las otras empresas.** Con el nodo reabierto tardan 9 ms (antes 25). Raíz y origen no crecían porque la tabla de compromisos es chica (las ventas en mesón no abren compromisos); con el índice cuestan dos lecturas por llave, unos 4 a 9 ms.
+- **En disco, el piso es la lectura por `_id`:** de 2 a 7 ms, contra 0,3 en memoria. La primera versión leía cada documento por separado (un caso de 4 hechos, 5 lecturas: 15 a 22 ms); leerlos con una sola consulta `_id IN (...)` la dejó en 9 a 15.
+- **La consulta de estado no crece con las otras empresas** (37 ms con X sola en disco, 63 con las otras): escribe su decisión en el log del disco en cada llamada.
+- **Por tipo sigue creciendo** (de 1 a 25–33 ms): queda pendiente.
+- Las mediciones con X sola pagan el calentamiento del nodo en disco: son la primera serie. Comparar entre filas de una misma tabla, no al milisegundo.
+
+### Líneas
+
+`src/nc/almacen.clj`: +74 y −7 (índices al escribir, buscar por índice, lectura por varios `_id`). Ningún otro archivo de `src` cambió: el resto del núcleo sigue llamando a `buscar` con el mismo filtro.
+
+### Pruebas y mutaciones
+
+Dos resguardos nuevos: el índice dice lo mismo que recorrer la tabla, en un escenario con los cuatro campos y documentos de varias transacciones; y buscar por un campo indexado solo consulta por llave. Tres mutaciones nuevas: `escribir!` no actualiza los índices, el índice pierde lo anterior, `buscar` recorre aunque haya índice. 93 pruebas con 809 comprobaciones pasan; las 62 mutaciones se detectan.
+
+### Correcciones
+
+- Del agente: tres. La primera medición usaba el número de días de `nc.volumen-test` (3, no los pedidos). Una carga de 20 días por empresa se lanzó estimando 5 minutos, pasó de 13 y se detuvo. Y las empresas de carga no compraban antes de vender, así que la política de D107 las detenía.

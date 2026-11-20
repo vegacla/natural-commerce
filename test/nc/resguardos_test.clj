@@ -6,6 +6,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [nc.almacen :as alm]
+            [nc.marco-test :as m]
             [nc.prueba :as p]))
 
 (def ^:dynamic *alm* nil)
@@ -68,6 +69,64 @@
         (alm/leer *alm* :empresa/a :saldos [:inventario/existencia {:producto :P-100}]))
       (is (= 6 (count @consultas)))
       (is (every? #(re-find #":xt/id" (pr-str (first %))) @consultas)))))
+
+;; --- D109: los índices propios dicen lo mismo que recorrer la tabla ------------------
+
+(defn- con-operacion
+  "Una empresa con casos de compra y de venta, y una factura revertida: hechos con
+  caso y con reversión, compromisos con raíz y origen, escritos en varias
+  transacciones."
+  []
+  (binding [m/*alm* *alm*]
+    (let [e (m/empresa! {})
+          x (fn [op entradas] (:salidas (m/ejecutar! e :persona/ana op entradas)))
+          orden (:orden (x :compras/emitir-orden m/orden-20))]
+      (x :compras/registrar-recepcion {:orden orden :producto :P-100 :bodega :bodega/central :cantidad [:cantidad 12 :un]})
+      (x :compras/registrar-recepcion {:orden orden :producto :P-100 :bodega :bodega/central :cantidad [:cantidad 8 :un]})
+      (x :ventas/alta-cliente {:id :cliente/ferreteria :nombre "Ferretería" :cupo [:monto 10000000 :CLP]})
+      (let [pedido  (:pedido (x :ventas/registrar-pedido {:cliente :cliente/ferreteria :producto :P-100
+                                                          :cantidad [:cantidad 2 :un] :precio-unitario [:monto 50000 :CLP]}))
+            factura (:factura (x :ventas/emitir-factura {:pedido pedido :monto [:monto 100000 :CLP] :fecha (java.util.Date.)
+                                                         :vencimiento (m/dias-desde-hoy 30)}))]
+        (x :ventas/emitir-nota-credito {:factura factura :fecha (java.util.Date.)}))
+      (reset! m/empresas #{})
+      (:empresa e))))
+
+(defn- filtros
+  "Cada búsqueda indexada posible en la empresa: [tabla filtro]."
+  [e]
+  (let [hs (alm/buscar *alm* e :hechos {})
+        cs (alm/buscar *alm* e :compromisos {})]
+    (distinct
+     (concat (for [h hs k [:hecho/caso :hecho/revierte] :when (get h k)] [:hechos {k (get h k)}])
+             (for [c cs k [:compromiso/raiz :compromiso/origen] :when (get c k)] [:compromisos {k (get c k)}])))))
+
+(deftest el-indice-dice-lo-mismo-que-recorrer
+  (testing "cada búsqueda por un campo indexado devuelve lo mismo que recorrer la tabla (D109)"
+    (let [e  (con-operacion)
+          fs (filtros e)]
+      (is (= #{:hecho/caso :hecho/revierte :compromiso/raiz :compromiso/origen}
+             (set (map (comp ffirst second) fs)))
+          "el escenario usa los cuatro campos")
+      (is (some #(< 1 (count (alm/buscar *alm* e (first %) (second %)))) fs)
+          "y alguna búsqueda junta documentos de varias transacciones")
+      (doseq [[tabla filtro] fs]
+        (is (= (set (#'alm/recorrer *alm* e tabla filtro {}))
+               (set (alm/buscar *alm* e tabla filtro)))
+            (pr-str tabla filtro))))))
+
+(deftest buscar-por-un-campo-indexado-va-por-la-llave-primaria
+  (testing "con un campo indexado, buscar lee el índice y cada documento por :xt/id (D109)"
+    (let [e  (con-operacion)
+          fs (filtros e)
+          consultas (atom [])
+          q xtdb.api/q]
+      (with-redefs [xtdb.api/q (fn [nodo consulta & mas]
+                                 (swap! consultas conj consulta)
+                                 (apply q nodo consulta mas))]
+        (doseq [[tabla filtro] fs] (alm/buscar *alm* e tabla filtro)))
+      (is (seq @consultas))
+      (is (every? #(re-find #":xt/id|_id IN \(" (pr-str (first %))) @consultas)))))
 
 ;; --- 2 y 3. La empresa es obligatoria y no se pisa -----------------------------
 

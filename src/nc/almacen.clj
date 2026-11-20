@@ -21,7 +21,8 @@
   Verificar y aplicar ocurren en una transacción (D49, D74): cada empresa tiene
   una marca que crece con cada escritura. Quien escribe declara la marca que vio
   al leer; si otra escritura la movió, la transacción completa falla."
-  (:require [clojure.walk :as walk]
+  (:require [clojure.string :as str]
+            [clojure.walk :as walk]
             [xtdb.api :as xt]
             [xtdb.node :as xtn])
   (:import (java.time Instant ZonedDateTime OffsetDateTime)
@@ -64,7 +65,18 @@
    :planes      :plan/id
    :tablas      :tabla/id
    :decisiones  :decision/id
-   :marcas      nil})
+   :marcas      nil
+   :indices     :indice/clave})
+
+(def ^:private indices
+  "Campos por los que se busca a menudo y que no son el `_id` (D109). XTDB solo
+  indexa `_id`: filtrar por otro campo recorre la tabla con los datos de todas las
+  empresas, y en disco los metadatos de los bloques no lo evitan (2026-11-19).
+  Por cada valor, un documento de la tabla :indices guarda los identificadores
+  que lo tienen. Ninguno de estos campos cambia después de creado el documento,
+  y sus listas son cortas: un caso, una raíz, un origen, una reversión."
+  {:hechos      [:hecho/caso :hecho/revierte]
+   :compromisos [:compromiso/raiz :compromiso/origen]})
 
 (def ^:private versionadas
   "Tablas cuyo dato cambia en operación, con :version y :rige-desde (D8)."
@@ -175,12 +187,48 @@
     (into [(list 'fn syms (list 'from tabla [(zipmap ks syms) '*]))]
           (map filtro ks))))
 
+(defn- recorrer
+  "Documentos de una empresa en una tabla cuyos campos coinciden con `filtro`,
+  con una sola consulta: si el filtro no trae `:xt/id`, XTDB recorre la tabla."
+  [{:keys [nodo] :as alm} empresa tabla filtro opts]
+  (mapv de-xt (xt/q nodo (consulta tabla empresa filtro)
+                    (opciones-de-consulta alm opts))))
+
+(defn- por-indice
+  "El campo indexado del filtro y su valor, si lo trae (D109)."
+  [tabla filtro]
+  (some (fn [campo] (let [v (get filtro campo)]
+                      (when (and (some? v) (not (coll? v))) [campo v])))
+        (indices tabla)))
+
+(declare leer)
+
+(defn- por-ids
+  "Los documentos de la empresa con esos `_id`, en una sola consulta por la llave
+  primaria, que además coinciden con `filtro`. El filtro se aplica aquí: son
+  pocos documentos (D109)."
+  [{:keys [nodo] :as alm} empresa tabla filtro ids opts]
+  (when (contains? filtro :empresa)
+    (error! :filtro-con-empresa "La empresa no va en el filtro: es un argumento aparte" {:filtro filtro}))
+  (if (empty? ids)
+    []
+    (let [sql (str "SELECT * FROM " (name tabla) " WHERE empresa = ? AND _id IN ("
+                   (str/join ", " (repeat (count ids) "?")) ")")]
+      (->> (xt/q nodo (into [sql empresa] ids) (opciones-de-consulta alm opts))
+           (filter (fn [doc] (every? (fn [[k v]] (= v (get doc k))) filtro)))
+           (sort-by #(.indexOf ^java.util.List (vec ids) (:xt/id %)))
+           (mapv de-xt)))))
+
 (defn buscar
-  "Documentos de una empresa en una tabla cuyos campos coinciden con `filtro`."
+  "Documentos de una empresa en una tabla cuyos campos coinciden con `filtro`.
+  Si el filtro trae un campo indexado (D109), lee el índice y después cada
+  documento por su llave primaria: no recorre los datos de otras empresas."
   ([alm empresa tabla filtro] (buscar alm empresa tabla filtro {}))
-  ([{:keys [nodo] :as alm} empresa tabla filtro opts]
-   (mapv de-xt (xt/q nodo (consulta tabla empresa filtro)
-                     (opciones-de-consulta alm opts)))))
+  ([alm empresa tabla filtro opts]
+   (if-let [[campo valor] (por-indice tabla filtro)]
+     (do (exigir-empresa! empresa)
+         (por-ids alm empresa tabla filtro (:indice/ids (leer alm empresa :indices [tabla campo valor] opts)) opts))
+     (recorrer alm empresa tabla filtro opts))))
 
 (defn leer
   "Un documento por su identificador de dominio, o nil."
@@ -290,6 +338,24 @@
       (error! :decision-inconsistente "La decisión no declara los hechos que se escriben (D82)"
               {:declarados (:decision/hechos decision) :escritos (map :hecho/id hechos)}))))
 
+(defn- indices-nuevos
+  "Los documentos de :indices que cambian con estos hechos y compromisos: a cada
+  valor de un campo indexado se suman los identificadores nuevos (D109). Se leen
+  antes de la transacción; la marca de la empresa (D74) asegura que nadie los
+  cambió entretanto."
+  [alm empresa decision docs-por-tabla]
+  (let [entradas (for [[tabla docs] docs-por-tabla
+                       doc docs
+                       campo (indices tabla)
+                       :let [v (get doc campo)]
+                       :when (some? v)]
+                   [[tabla campo v] (get doc (tablas tabla))])]
+    (for [[clave pares] (group-by first entradas)
+          :let [antes (vec (:indice/ids (leer alm empresa :indices clave)))
+                ids   (into antes (comp (map second) (remove (set antes)) (distinct)) pares)]
+          :when (not= ids antes)]
+      (put :indices empresa {:indice/clave clave :indice/ids ids} nil decision))))
+
 (defn escribir!
   "Escribe en una sola transacción la decisión de MARCO y lo que produjo: hechos,
   compromisos, saldos y entidades de una empresa (D82). Sin decisión, o con una
@@ -313,7 +379,8 @@
                      (mapcat #(hecho-nuevo empresa % d) hechos)
                      (mapcat #(compromiso-propio empresa % d) compromisos)
                      (map #(put :saldos empresa % nil d) saldos)
-                     (map #(put :entidades empresa % nil d) entidades))]
+                     (map #(put :entidades empresa % nil d) entidades)
+                     (indices-nuevos alm empresa d {:hechos hechos :compromisos compromisos}))]
      (try
        (let [{:keys [tx-id system-time]} (xt/execute-tx nodo (vec ops)
                                                         (cond-> {} registro (assoc :system-time registro)))]

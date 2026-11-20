@@ -40,6 +40,7 @@ Antes de preguntar al usuario algo de diseño, comprobar si este principio y el 
 - SARA mínima: `.\sara.ps1` en PowerShell y abrir http://localhost:8081. Carga los datos de ejemplo en memoria; se pierden al detenerla.
 - E23 con Claude de verdad: `.\e23-claude.ps1` toma la clave de `.env` (ignorado por git; no leerlo) o la pide, y corre `nc.lenguaje-claude-test` (una conversación de cinco frases y una muestra de 34 por vuelta, con `$env:NC_E23_VUELTAS`; llamadas a Claude Haiku 5.5, cuesta dinero); sin `ANTHROPIC_API_KEY` la prueba se omite.
 - E26 con un año completo: `$env:NC_VOLUMEN='1'; .\pruebas.ps1 -n nc.volumen-test` (unos 4 minutos); sin la variable corre con tres días.
+- Medición en disco con muchas empresas (D109): `$env:NC_DISCO='49'; $env:NC_DISCO_DIAS='8'; .\pruebas.ps1 -n nc.disco-test` (unos 3 minutos); sin `NC_DISCO` se omite.
 - Pruebas: `.\pruebas.ps1` en PowerShell, desde cualquier carpeta; fija `JAVA_CMD` solo mientras corre. En bash: `JAVA_CMD="C:/Users/ceva2/AppData/Local/Programs/Temurin21/jdk-21.0.13+9/bin/java.exe" deps -M:test`.
 
 ## Código
