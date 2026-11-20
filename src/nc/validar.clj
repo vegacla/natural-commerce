@@ -117,6 +117,7 @@
       :existe    (do (tipos) :booleano)
       :cuenta    (do (tipos) :numero)
       :todos     (let [[col c] args] (tipo-de-cada c col ent) :booleano)
+      :cada      (let [[col c] args] (tipo-de-cada c col ent) :coleccion)
       (:suma :max :min) (let [[x col] args] (tipo-de-cada x col ent))
       :->        (tipo-navegacion args ent expr)
       :tabla     (do (run! #(tipo-de % ent) (rest args)) :cualquiera)
@@ -198,6 +199,12 @@
       (= :cuando (first ef))
       (let [[_ condicion & efectos] ef]
         (reduce efecto (expr estado condicion) efectos))
+
+      ;; Los efectos, una vez por elemento, que se nombra `cada` (D113).
+      (= :cada (first ef))
+      (let [[_ col & efectos] ef
+            dentro (reduce efecto (-> (expr estado col) (assoc-in [:ent :refs 'cada] :cualquiera)) efectos)]
+        (assoc-in dentro [:ent :refs] (get-in estado [:ent :refs])))
 
       (verbos (first ef))
       (let [[k args nombre] (partes ef)]

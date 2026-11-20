@@ -1,0 +1,150 @@
+;; Ventas con varias líneas (etapa 15, E28). Experimento, no canon: lo carga solo
+;; nc.lineas-test, como la cobertura (D103). Mide si un documento con varias
+;; líneas (pedido, despacho, factura) se expresa con la notación.
+;;
+;; Cada línea del pedido tiene su propia entrega pendiente, como en cualquier ERP:
+;; un despacho parcial deja pendiente lo que falta de cada línea. Lo que se cobra
+;; es uno solo, por el total.
+
+{:tipos-hecho
+ [{:tipo-hecho/id      :lineas/pedido
+   :tipo-hecho/datos   [:map
+                        [:cliente [:ref :cliente]]
+                        [:lineas [:vector [:map
+                                           [:producto [:ref :producto]]
+                                           [:cantidad :cantidad]
+                                           [:precio-unitario :monto]]]]]
+   :tipo-hecho/regimen :solo-agregar}
+
+  ;; Cada línea mueve la existencia de su producto, con su costo.
+  {:tipo-hecho/id      :lineas/despacho
+   :tipo-hecho/datos   [:map
+                        [:bodega [:ref :bodega]]
+                        [:lineas [:vector [:map
+                                           [:entrega [:ref :lineas/entrega-pendiente]]
+                                           [:producto [:ref :producto]]
+                                           [:cantidad :cantidad]
+                                           [:costo-unitario :monto]]]]]
+   :tipo-hecho/regimen :solo-agregar
+   :tipo-hecho/mueve   [{:saldo :inventario/existencia
+                         :cada  hecho/lineas
+                         :clave {:producto cada/producto :bodega hecho/bodega}
+                         :suma  {:cantidad [:* -1 cada/cantidad]
+                                 :costo    [:* -1 cada/cantidad cada/costo-unitario]}}]}
+
+  {:tipo-hecho/id      :lineas/factura
+   :tipo-hecho/datos   [:map
+                        [:pedido [:ref :lineas/pedido]]
+                        [:lineas [:vector [:map
+                                           [:producto [:ref :producto]]
+                                           [:cantidad :cantidad]
+                                           [:precio-unitario :monto]
+                                           [:monto :monto]]]]
+                        [:monto :monto]
+                        [:fecha :fecha]
+                        [:vencimiento :fecha]]
+   :tipo-hecho/regimen :solo-agregar}]
+
+ :contratos
+ [{:op/id        :lineas/registrar-pedido
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:lineas [:vector {:min 1} [:map
+                                              [:producto [:ref :producto]]
+                                              [:cantidad :cantidad]
+                                              [:precio-unitario :monto]]]]]
+   :op/salidas   {:pedido   pedido/id
+                  :entregas [:compromisos {:tipo :lineas/entrega-pendiente :origen pedido/id}]}
+   :op/efectos
+   [[:registra-hecho :lineas/pedido entrada :como pedido]
+    [:cada entrada/lineas
+     [:abre-compromiso {:tipo     :lineas/entrega-pendiente
+                        :deudor   empresa
+                        :acreedor entrada/cliente
+                        :origen   pedido/id
+                        :objeto   {:producto cada/producto :cantidad cada/cantidad}}]]
+    [:abre-compromiso {:tipo     :lineas/por-cobrar
+                       :deudor   entrada/cliente
+                       :acreedor empresa
+                       :estado   :latente
+                       :origen   pedido/id
+                       :objeto   {:monto [:suma [:* cada/cantidad cada/precio-unitario] entrada/lineas]}}]]}
+
+  ;; Un despacho saca varias líneas de una bodega. Cada línea dice qué entrega
+  ;; cumple y cuánto; el producto sale de la entrega, y el costo, del concepto.
+  {:op/id        :lineas/despachar
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:bodega [:ref :bodega]]
+                  [:lineas [:vector {:min 1} [:map
+                                              [:entrega [:ref :lineas/entrega-pendiente]]
+                                              [:cantidad :cantidad]]]]
+                  [:metodo {:optional true} :keyword]]
+   :op/salidas   {:despacho despacho/id}
+   :op/efectos
+   [[:registra-hecho :lineas/despacho
+     {:bodega entrada/bodega
+      :lineas [:cada entrada/lineas
+               {:entrega        cada/entrega
+                :producto       [:-> cada/entrega :compromiso/objeto :producto]
+                :cantidad       cada/cantidad
+                :costo-unitario [:inventario/costo-unitario
+                                 {:producto [:-> cada/entrega :compromiso/objeto :producto]
+                                  :bodega   entrada/bodega
+                                  :cantidad cada/cantidad
+                                  :metodo   entrada/metodo}]}]}
+     :como despacho]
+    [:cada entrada/lineas
+     [:reduce-compromiso cada/entrega {:cantidad cada/cantidad}]]]}
+
+  ;; La factura copia las líneas del pedido con su monto, y lo que se cobra pasa
+  ;; de latente a exigible por el total.
+  {:op/id        :lineas/emitir-factura
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:pedido [:ref :lineas/pedido]]
+                  [:fecha :fecha]
+                  [:vencimiento :fecha]]
+   :op/salidas   {:factura factura/id}
+   :op/efectos
+   [[:registra-hecho :lineas/factura
+     {:pedido      entrada/pedido
+      :lineas      [:cada [:-> entrada/pedido :hecho/datos :lineas]
+                    {:producto        cada/producto
+                     :cantidad        cada/cantidad
+                     :precio-unitario cada/precio-unitario
+                     :monto           [:* cada/cantidad cada/precio-unitario]}]
+      :monto       [:suma [:* cada/cantidad cada/precio-unitario] [:-> entrada/pedido :hecho/datos :lineas]]
+      :fecha       entrada/fecha
+      :vencimiento entrada/vencimiento}
+     :como factura]
+    [:extingue-compromiso [:compromisos {:tipo :lineas/por-cobrar :origen entrada/pedido :estado :latente}]
+                          :facturado]
+    [:abre-compromiso {:tipo     :lineas/por-cobrar
+                       :deudor   [:-> entrada/pedido :hecho/datos :cliente]
+                       :acreedor empresa
+                       :vence    entrada/vencimiento
+                       :origen   factura/id
+                       :objeto   {:monto [:suma [:* cada/cantidad cada/precio-unitario]
+                                                [:-> entrada/pedido :hecho/datos :lineas]]}}]]}]
+
+ :politicas
+ [;; La misma regla que la por defecto de D107, línea por línea: ninguna línea
+  ;; saca más de lo que hay de su producto en la bodega.
+  {:politica/id       :lineas/salir-de-lo-que-hay
+   :politica/version  1
+   :politica/rige-desde #inst "2026-01-01"
+   :politica/origen   :empresa
+   :politica/aplica-a :lineas/despachar
+   :politica/cuando   [:no [:todos entrada/lineas
+                            [:<= cada/cantidad
+                                 [:saldo :inventario/existencia
+                                         {:producto [:-> cada/entrega :compromiso/objeto :producto]
+                                          :bodega   entrada/bodega}
+                                         :cantidad]]]]
+   :politica/forma    :prohibe
+   :politica/cuerpo   {:razon "Una línea saca más de lo que hay de su producto en la bodega"}}]}

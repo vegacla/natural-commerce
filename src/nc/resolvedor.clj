@@ -50,16 +50,27 @@
 
 (defn- ref? [forma] (and (vector? forma) (= :ref (first forma))))
 
+(defn- problema-de-referencias
+  "La primera referencia que no existe, en cualquier profundidad de la forma: una
+  referencia, una colección (`[:vector f]`) o un mapa (`[:map [campo f] ...]`),
+  como las líneas de un documento (D112)."
+  [estado forma valor]
+  (cond
+    (nil? valor) nil
+    (ref? forma) (problema-de-referencia estado forma valor)
+    (and (vector? forma) (= :vector (first forma)))
+    (some #(problema-de-referencias estado (last forma) %) valor)
+    (and (vector? forma) (= :map (first forma)))
+    (some (fn [[k & resto]] (problema-de-referencias estado (last resto) (get valor k)))
+          (remove map? (rest forma)))))
+
 (defn- problema-de-entrada
-  "Lo que no calza de una entrada con su tipo. Una colección de referencias
-  ([:vector [:ref tipo]]) se revisa elemento por elemento."
+  "Lo que no calza de una entrada con su tipo, y las referencias que no existen,
+  también dentro de colecciones y mapas (D65, D99, D112)."
   [estado forma valor]
   (if-let [error (m/explain (esq/esquema-de-datos forma) valor)]
     (str/join "; " (flatten [(me/humanize error)]))
-    (cond
-      (ref? forma) (problema-de-referencia estado forma valor)
-      (and (vector? forma) (= :vector (first forma)) (ref? (second forma)))
-      (some #(problema-de-referencia estado (second forma) %) valor))))
+    (problema-de-referencias estado forma valor)))
 
 (defn- revisar-entradas
   "Separa las entradas válidas de los requisitos que deja el contrato: una

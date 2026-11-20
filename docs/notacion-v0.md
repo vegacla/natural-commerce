@@ -190,13 +190,24 @@ Para navegar entre entidades: `[:-> entrada/producto :producto/categoria]`.
 | Comparación | `:= :!= :> :>= :< :<= :entre` |
 | Lógica | `:y :o :no :si :caso` |
 | Fechas | `:+dias :+meses :dias-entre :fin-de-mes :habil-siguiente` |
-| Colecciones | `:hechos :compromisos :suma :cuenta :max :min :existe :todos` |
+| Colecciones | `:hechos :compromisos :suma :cuenta :max :min :existe :todos :cada` |
 | Conceptos | `[:concepto/id {parametros}]` |
 | Tablas | `[:tabla nombre clave...]` para "fija" |
 | Valores | `[:monto n moneda]` `[:cantidad n unidad]` `[:% n]` `[:dias n]` `[:meses n]` |
 | Personas | `[:rol nombre]`: las personas que tienen ese rol |
 
 Las colecciones se obtienen con `[:hechos filtro]` y `[:compromisos filtro]`, donde el filtro es un mapa que incluye `:tipo`. Las demás operaciones reciben una colección: `[:existe col]`, `[:cuenta col]`, `[:todos col condicion]`, `[:suma x col]`, `[:max x col]`, `[:min x col]`. En las cuatro últimas, la condición o `x` es un campo o una expresión que ve cada elemento como `cada`: `[:= cada/estado :activo]`, `[:-> cada :compromiso/saldo :monto]`.
+
+`[:cada col x]` devuelve la lista de `x` evaluada para cada elemento (D113): las líneas de un documento armadas desde las de otro, o con un dato calculado por línea.
+
+```clojure
+:lineas [:cada entrada/lineas
+         {:entrega        cada/entrega
+          :producto       [:-> cada/entrega :compromiso/objeto :producto]
+          :cantidad       cada/cantidad
+          :costo-unitario [:inventario/costo-unitario {:producto [:-> cada/entrega :compromiso/objeto :producto]
+                                                       :bodega entrada/bodega :cantidad cada/cantidad :metodo nil}]}]
+```
 
 `[:caso c1 v1 c2 v2 ... defecto]` devuelve el valor de la primera condición que se cumple.
 
@@ -287,6 +298,8 @@ Una capacidad publica sus conceptos. El catálogo de cada empresa reúne los del
 
 Los campos llevan su nombre completo (`:cliente/nombre`). Un verbo de entidad no necesita un hecho.
 
+Una entrada puede ser una lista de líneas, cada una un mapa: `[:lineas [:vector {:min 1} [:map [:producto [:ref :producto]] [:cantidad :cantidad]]]]`. El contrato revisa cada referencia en cualquier profundidad, también dentro de las líneas (D65, D112).
+
 `:op/salidas` declara lo que la operación devuelve (D10): un mapa de nombre a expresión, cuyo tipo se deduce porque las expresiones son tipadas. Con eso MARCO comprueba que la salida de una operación sirve de entrada a otra, y SARA sabe qué mostrar. En una consulta, las salidas son todo el contrato.
 
 ### 5.1 Efectos y verbos
@@ -294,6 +307,15 @@ Los campos llevan su nombre completo (`:cliente/nombre`). Un verbo de entidad no
 Un efecto es un vector `[verbo argumentos...]`. Los argumentos son expresiones; una expresión nunca contiene un efecto (D55). Los efectos tienen dos formas propias:
 
 - `[:cuando condicion efecto...]` aplica los efectos solo si la condición se cumple. No es el `:si` de las expresiones, que solo elige entre valores.
+- `[:cada col efecto...]` aplica los efectos una vez por elemento de la colección, que se nombra `cada` (D113). Así cada línea de un pedido abre su entrega pendiente, y cada línea de un despacho reduce la suya en lo que despacha. Fuera de `:cada`, `cada` no existe: el validador rechaza el contrato que lo use.
+
+```clojure
+[:cada entrada/lineas
+ [:abre-compromiso {:tipo :ventas/entrega-pendiente :deudor empresa :acreedor entrada/cliente
+                    :origen pedido/id :objeto {:producto cada/producto :cantidad cada/cantidad}}]]
+[:cada entrada/lineas
+ [:reduce-compromiso cada/entrega {:cantidad cada/cantidad}]]
+```
 - `:como nombre`, al final de un efecto, le da nombre a su resultado para usarlo después como `nombre/x` (arriba, `orden/id`).
 
 Los verbos son diez (D30, D56):

@@ -929,3 +929,46 @@ En todas las respuestas nuevas SARA dice que no tiene la operación y nombra la 
 Líneas: `src/nc/sara/lenguaje.clj`, +3 (la regla en el prompt). Costo: 18 llamadas.
 
 **Hueco que dejó ver:** no hay operación para consultar la existencia de un producto, aunque el saldo `:inventario/existencia` existe. Sería una consulta en el canon de inventario, sin núcleo.
+
+## Etapa 15: documentos con varias líneas (E28, 2026-11-19)
+
+El análisis de las construcciones nuevas mostró que las líneas solo estaban probadas en el asiento: el pedido, el despacho y la factura de venta eran de un producto. E28 prueba un pedido de tres productos (P-100 ×5 a 50.000, P-200 ×10 a 8.000, P-300 ×2 a 15.000), despachado en dos partes y facturado. Los contratos están fuera del canon, en `resources/lineas/ventas.edn`, y solo los carga `nc.lineas-test`, como la cobertura (D103).
+
+### Qué pasó
+
+Primero se escribieron el escenario y la prueba, y los contratos con la notación de entonces. La prueba falló en tres puntos, y en ninguno más:
+
+| Falla | Qué faltaba | Arreglo |
+|---|---|---|
+| Una línea con un producto que no existe (`:P-999`) pasaba como lista | El resolvedor revisaba referencias sueltas y colecciones de referencias, no los campos de un mapa | D112: las referencias se revisan en cualquier profundidad |
+| «El verbo :cada aún no se implementa» | Un efecto por línea: abrir la entrega de cada línea, reducir la de cada línea del despacho | D113: `[:cada col efecto...]` |
+| «No existe la operación :cada» | Armar las líneas del despacho y de la factura con datos calculados por línea (producto, costo, monto) | D113: `[:cada col x]` |
+
+Con eso, todo lo demás se expresó con lo que ya había: el total con `:suma` sobre las líneas, la existencia por línea con `:cada` en el saldo (D95), el costo por línea con el concepto, el cobro latente que la factura activa, y una regla línea por línea con `[:todos entrada/lineas ...]` («ninguna línea saca más de lo que hay de su producto»).
+
+### Líneas
+
+| Archivo | Qué hace | Líneas |
+|---|---|---|
+| `src/nc/ejecutor.clj` | El efecto `:cada` | +12, −1 |
+| `src/nc/expresion.clj` | La expresión `:cada` | +3 |
+| `src/nc/validar.clj` | `:cada` en expresiones y efectos; `cada` no existe fuera | +7 |
+| `src/nc/resolvedor.clj` | Referencias en cualquier profundidad | +17, −6 |
+| `resources/lineas/ventas.edn` | Tres tipos de hecho, tres contratos y una política | nuevo |
+
+Unas 32 líneas netas de núcleo para un mecanismo; las tres operaciones, cero. Ningún primitivo, verbo ni forma nuevos: `:cada` ya existía en el movimiento de saldos y ahora está también en expresiones y efectos.
+
+### Pruebas y mutaciones
+
+`nc.lineas-test`: E28 (35 comprobaciones), el catálogo con líneas es válido, y `cada` no se admite fuera de su `:cada`. 102 pruebas con 880 comprobaciones pasan. Cuatro mutaciones nuevas (las referencias de una línea no se revisan, el efecto `:cada` se aplica solo al primero, la expresión `:cada` no devuelve nada, el catálogo admite `cada` fuera de `:cada`), y se corrigió el patrón de la de D99, que apuntaba al código reescrito. Las 68 se detectan.
+
+### Lo que E28 no cubre (pendiente en el registro)
+
+- **Fija y sugiere dentro de una línea.** Apuntan a `:entrada/x`; no hay cómo decir «el precio de cada línea sale de la lista de precios».
+- **La ley en una factura con líneas.** El IVA legal aplica a `:ventas/emitir-factura`; la factura del experimento es otra operación. Se resuelve si el canon pasa a líneas.
+- **SARA con líneas.** Una lista de líneas es un campo de texto en EDN: sirve para pruebas, no para una persona.
+- **Decidir si el canon pasa a líneas.** El pedido de un producto es un caso del pedido con líneas; mantener los dos sería duplicar.
+
+### Correcciones
+
+- Humanas a los contratos: ninguna. Del agente: una, la política del experimento no tenía `:rige-desde` (la prueba se la agregaba al publicarla y el catálogo la exige).

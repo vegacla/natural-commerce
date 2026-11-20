@@ -274,9 +274,20 @@
 ;; --- Efectos ---------------------------------------------------------------------
 
 (defn- efecto [app ef]
-  (if (= :cuando (first ef))
+  (case (first ef)
+    :cuando
     (let [[_ condicion & efectos] ef]
       (if (e/evaluar condicion (contexto app)) (reduce efecto app efectos) app))
+
+    ;; Los efectos una vez por elemento de la colección, que se nombra `cada`: la
+    ;; entrega de cada línea de un pedido (D113). Fuera de :cada nadie lee `cada`:
+    ;; el catálogo no lo admite (nc.validar).
+    :cada
+    (let [[_ col & efectos] ef]
+      (reduce (fn [app x] (reduce efecto (assoc-in app [:refs 'cada] x) efectos))
+              app
+              (e/evaluar col (contexto app))))
+
     (let [[verbo args nombre] (val/partes ef)
           aplicar   (or (verbos verbo)
                         (e/error! :verbo-no-implementado (str "El verbo " verbo " aún no se implementa") {:verbo verbo}))

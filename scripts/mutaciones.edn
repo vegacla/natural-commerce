@@ -250,13 +250,32 @@
   :archivo "src/nc/sara/lenguaje.clj"
   :buscar "(if-let [t (nuevos k)]"
   :poner "(if-let [t nil]"}
+ ;; D112 y D113: documentos con varias líneas.
+ {:nombre "las referencias dentro de una línea no se revisan"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(and (vector? forma) (= :map (first forma)))
+    (some"
+  :poner "(and false (vector? forma) (= :map (first forma)))
+    (some"}
+ {:nombre "el efecto :cada se aplica solo al primer elemento"
+  :archivo "src/nc/ejecutor.clj"
+  :buscar "(e/evaluar col (contexto app)))"
+  :poner "(take 1 (e/evaluar col (contexto app))))"}
+ {:nombre "la expresión :cada no devuelve nada"
+  :archivo "src/nc/expresion.clj"
+  :buscar ":cada  (let [[col c] args] (vec (de-cada c (ev col) ctx)))"
+  :poner ":cada  (let [[col c] args] [])"}
+ {:nombre "el catálogo admite cada fuera de :cada"
+  :archivo "src/nc/validar.clj"
+  :buscar "(assoc-in dentro [:ent :refs] (get-in estado [:ent :refs]))"
+  :poner "dentro"}
  {:nombre "el adaptador del modelo conoce MARCO"
   :archivo "src/nc/sara/claude.clj"
   :buscar "(:import (com.anthropic.client AnthropicClient)"
   :poner "(:require [nc.ejecutor])\n  (:import (com.anthropic.client AnthropicClient)"}
  {:nombre "una colección de referencias no se revisa"
   :archivo "src/nc/resolvedor.clj"
-  :buscar "(some #(problema-de-referencia estado (second forma) %) valor)"
+  :buscar "(some #(problema-de-referencias estado (last forma) %) valor)"
   :poner "nil"}
  {:nombre "una consulta que lee el caso se da por lista sin caso"
   :archivo "src/nc/resolvedor.clj"

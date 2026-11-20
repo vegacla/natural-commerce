@@ -76,6 +76,7 @@
    :hechos      {:min 1 :max 1}
    :compromisos {:min 1 :max 1}
    :todos       {:min 2 :max 2}
+   :cada        {:min 2 :max 2}
    :suma        {:min 2 :max 2}
    :max         {:min 2 :max 2}
    :min         {:min 2 :max 2}
@@ -178,6 +179,8 @@
       :hechos      ((:hechos ctx) (ev (first args)))
       :compromisos ((:compromisos ctx) (ev (first args)))
       :todos (let [[col c] args] (every? boolean (de-cada c (ev col) ctx)))
+      ;; La expresión para cada elemento: las líneas de un documento (D113).
+      :cada  (let [[col c] args] (vec (de-cada c (ev col) ctx)))
       :suma  (let [[expr col] args] (reduce v/sumar 0 (de-cada expr (ev col) ctx)))
       :max   (let [[expr col] args] (extremo pos? expr (ev col) ctx))
       :min   (let [[expr col] args] (extremo neg? expr (ev col) ctx))
