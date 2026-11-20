@@ -18,8 +18,8 @@ El modelo está cerrado tras una sesión de descubrimiento (13 al 16 de noviembr
 6. `docs/revision-xtdb.md` — respaldo, costos y soporte de XTDB; criterio de salida.
 7. `docs/separacion-por-empresa.md` — resguardos de la separación por empresa (D22, D80) y cómo se verifican.
 8. `docs/knowledge/` — lo que se aprende implementando: comportamientos de las herramientas y procedimientos, cada uno con cómo se verificó (`README.md` es el índice).
-10. `docs/plan/plan-de-trabajo.md` — lo que falta hacer, en orden, con las trampas conocidas; escrito para un agente que llega sin contexto.
 9. `docs/analisis-universo-operaciones.md` y `docs/analisis/operaciones.csv` — 74 operaciones de ERP clasificadas por primitivos, verbos y formas de política.
+10. `docs/plan/plan-de-trabajo.md` — lo que falta hacer, en orden, con las trampas conocidas; escrito para un agente que llega sin contexto.
 
 ## Principio de diseño (D46)
 
