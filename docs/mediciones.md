@@ -914,3 +914,18 @@ El núcleo de MARCO no cambió, y ninguna línea es propia de una operación: lo
 ### Correcciones
 
 - Del agente: la primera corrida larga confirmaba solo lo reversible, copiado de la conversación corta de E23, y no representaba a una persona que usa el chat.
+
+## SARA no inventa lo que no hay (D111, 2026-11-19)
+
+`.\e23-claude.ps1 -v nc.lenguaje-claude-test/e23-sin-inventar`: seis pedidos para los que no hay operación (stock, ventas del mes, lista de clientes por correo, balance, quién aprobó, exportar a Excel), con Claude Haiku 5.5. La prueba marca palabras que delatan un invento (otro sistema, módulo, reporte, contactar a alguien) que no vengan de la frase de la persona; las marcas se revisan leyendo el texto.
+
+| Prompt | Respuestas que inventan algo |
+|---|---|
+| Anterior | 2 de 6: «revisa el reporte de ventas del ERP o pide a quien lleva contabilidad»; «necesitarás usar otro sistema o pedírselo a quien administre el módulo de ventas» |
+| Con D111, dos corridas | 0 de 12. La prueba marcó 3, todas falsos positivos: repetir «correo» y «Excel» de la frase, y «ninguna emite ese reporte» sobre el balance pedido |
+
+En todas las respuestas nuevas SARA dice que no tiene la operación y nombra la más parecida («Consultar estado», «Alta cliente»), como pide la regla. «¿Quién aprobó la última compra?» va a consultar estado, que es razonable, y queda bloqueada pidiendo la orden o la solicitud.
+
+Líneas: `src/nc/sara/lenguaje.clj`, +3 (la regla en el prompt). Costo: 18 llamadas.
+
+**Hueco que dejó ver:** no hay operación para consultar la existencia de un producto, aunque el saldo `:inventario/existencia` existe. Sería una consulta en el canon de inventario, sin núcleo.

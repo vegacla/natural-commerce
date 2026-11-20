@@ -263,3 +263,37 @@
                     (filter #(= :ejecutado (:decision/resultado %))
                             (bit/decisiones m/*alm* (:empresa a) {:decision/origen :sara})))))
       (is (<= (apply max (map :enviados filas)) sl/mensajes-maximos)))))
+
+;; --- Lo que SARA no tiene (D111) ------------------------------------------------------
+
+(def sin-operacion
+  "Pedidos para los que no hay operación. SARA debe decirlo sin inventar a dónde ir."
+  ["Dame el stock de los guantes de nitrilo"
+   "¿Cuánto vendimos este mes?"
+   "Envíame por correo la lista de clientes"
+   "Muéstrame el balance general"
+   "¿Quién aprobó la última compra?"
+   "Exporta las facturas a Excel"])
+
+(def ^:private inventos
+  "Palabras que delatan algo que SARA no tiene: otro sistema, módulo, pantalla,
+  reporte, persona o procedimiento."
+  #"(?i)sistema de|módulo|pantalla|reporte|informe|contact|administrador|soporte|directamente en|otra herramienta|otro sistema|planilla|excel|correo|consult[ae] con")
+
+(deftest e23-sin-inventar
+  (if-not (con-clave?)
+    (do (println "nc.lenguaje-claude-test: sin ANTHROPIC_API_KEY, se omite lo que SARA no tiene.") (is true))
+    (let [b (empresa-con-ventas!)
+          modelo (modelo)
+          filas (vec (for [frase sin-operacion
+                           :let [r (:respuesta (sl/turno! b :persona/ana modelo (sl/conversacion) frase))
+                                 t (or (:texto r) "")]]
+                       {:frase frase :estado (:estado r) :operacion (:operacion r) :texto t
+                        ;; Repetir lo que la persona pidió («Excel», «correo») no es inventar.
+                        :invento (first (remove #(str/includes? (str/lower-case frase) (str/lower-case %))
+                                                (map #(if (string? %) % (first %)) (re-seq inventos t))))}))]
+      (println "E23, lo que SARA no tiene:")
+      (doseq [{:keys [frase estado operacion texto invento]} filas]
+        (println "  " (pr-str [frase estado operacion invento]) "\n     «" texto "»"))
+      (println "   Con algo inventado:" (count (filter :invento filas)) "de" (count filas))
+      (lo-que-no-depende-del-modelo b))))
