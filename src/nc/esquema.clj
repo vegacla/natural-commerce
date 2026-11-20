@@ -124,7 +124,12 @@
    [:politica/verificada {:optional true} :boolean]])
 
 (def ^:private campo-y-valor
-  [:map {:closed true} [:campo :qualified-keyword] [:valor :any]])
+  "Fija y sugiere: un campo de la entrada (`:entrada/x`), o con `:cada` un campo
+  de cada línea de una entrada que es una lista (D114), opcionalmente solo de
+  las líneas que cumplen `:donde`."
+  [:or
+   [:map {:closed true} [:campo :qualified-keyword] [:valor :any]]
+   [:map {:closed true} [:cada :qualified-keyword] [:campo :keyword] [:valor :any] [:donde {:optional true} :any]]])
 
 (def ^:private cuerpos
   "Forma del cuerpo de cada una de las ocho formas de política (D31, D53)."
@@ -277,7 +282,10 @@
     :prohibe []
     :limita  (concat (for [k [:valor :maximo :tolerancia] :when (contains? cuerpo k)] [(k cuerpo) nil nil])
                      (for [x (vals (get-in cuerpo [:cubre-con :entradas]))] [x nil {'faltante :cualquiera}]))
-    (:sugiere :fija) [[(:valor cuerpo) nil nil]]
+    (:sugiere :fija) (if (contains? cuerpo :cada)
+                       (cond-> [[(:valor cuerpo) nil {'cada :cualquiera}]]
+                         (contains? cuerpo :donde) (conj [(:donde cuerpo) :booleano {'cada :cualquiera}]))
+                       [[(:valor cuerpo) nil nil]])
     :exime   (when (contains? cuerpo :hasta) [[(:hasta cuerpo) :booleano nil]])
     :inicia  (concat (when (contains? cuerpo :despues) [[(:despues cuerpo) :duracion nil]])
                      (for [x (vals (:entradas cuerpo))] [x nil {'hecho :cualquiera}]))
@@ -302,10 +310,19 @@
           (concat
            (when (contains? politica :politica/cuando) (revisar [cuando :booleano nil]))
            (mapcat revisar (expresiones-de politica))
-           (when (and (#{:sugiere :fija} f)
+           (when (and (#{:sugiere :fija} f) (not (contains? cuerpo :cada))
                       (not (contains? entradas (keyword (name (:campo cuerpo))))))
              [(problema :campo-desconocido (:campo cuerpo)
                         (str "La operación no tiene la entrada " (:campo cuerpo)))])
+           (when (and (#{:sugiere :fija} f) (contains? cuerpo :cada))
+             (for [op ops
+                   :let [forma (get (campos-de (get-in catalogo [:contratos op :op/entradas]))
+                                    (keyword (name (:cada cuerpo))))
+                         linea (when (and (vector? (:tipo forma)) (= :vector (first (:tipo forma))))
+                                 (campos-de (last (:tipo forma))))]
+                   :when (not (contains? linea (:campo cuerpo)))]
+               (problema :campo-desconocido (:campo cuerpo)
+                         (str op " no tiene una lista " (:cada cuerpo) " con el campo " (:campo cuerpo)))))
            (when (and (= :inicia f) (not (contains? (:contratos catalogo) (:objetivo cuerpo))))
              [(problema :operacion-desconocida (:objetivo cuerpo)
                         (str "No existe la operación " (:objetivo cuerpo)))])

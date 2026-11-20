@@ -211,20 +211,77 @@
         tope    (filter #(= maxima (prioridad %)) grupo)]
     (if (next tope) [nil tope] [(first tope) nil])))
 
+(defn- especifica? [p]
+  (or (contains? p :politica/cuando) (contains? (:politica/cuerpo p) :donde)))
+
 (defn- ganadora-sugiere
   "Entre varias \"sugiere\" del mismo campo, la que dice la combinación de la
-  empresa: por defecto, la más específica, la que tiene condición (P9)."
+  empresa: por defecto, la más específica, la que tiene condición (P9): sobre
+  la operación (`:politica/cuando`) o sobre la línea (`:donde`, D114)."
   [estado ps]
-  (let [ordenadas (sort-by (juxt #(if (contains? % :politica/cuando) 0 1) (comp - prioridad)) ps)]
+  (let [ordenadas (sort-by (juxt #(if (especifica? %) 0 1) (comp - prioridad)) ps)]
     (case (est/combinacion estado :sugiere)
       :la-de-mayor-prioridad (first (sort-by (comp - prioridad) ps))
       (first ordenadas))))
+
+(defn- por-linea?
+  [p] (contains? (:politica/cuerpo p) :cada))
+
+(defn- valores-por-linea
+  "Fija y sugiere con `:cada` (D114): cada línea de la lista recibe el valor de la
+  política que le aplica, con la línea como `cada`. La fija llena el campo o
+  rechaza un valor distinto, línea por línea; la sugiere llena solo donde falta.
+  Entre varias que aplican a una línea se elige como en un campo suelto."
+  [estado ctx ps r]
+  (let [clave   (fn [p] [(keyword (name (get-in p [:politica/cuerpo :cada]))) (get-in p [:politica/cuerpo :campo])])
+        aplican (fn [forma] (group-by clave (filter #(and (por-linea? %) (aplica? ctx %)) (de-forma forma ps))))
+        fijas   (aplican :fija)
+        sugeridas (aplican :sugiere)]
+    (reduce
+     (fn [r [col campo :as k]]
+       (let [lineas (get-in r [:entradas col])]
+         (if-not (sequential? lineas)
+           r
+           (reduce
+            (fn [r i]
+              (let [linea (get-in r [:entradas col i])
+                    ctx-l (assoc-in ctx [:refs 'cada] linea)
+                    le-aplica? (fn [p] (let [d (get-in p [:politica/cuerpo :donde] ::sin-donde)]
+                                         (or (= ::sin-donde d) (true? (valor-seguro d ctx-l)))))
+                    fs    (filter le-aplica? (get fijas k))
+                    ss    (filter le-aplica? (get sugeridas k))
+                    dado  (get linea campo)
+                    donde (str (name campo) " de la línea " (inc i))
+                    usar  (fn [r p forma x]
+                            (-> r (assoc-in [:entradas col i campo] x)
+                                (update :valores conj {:campo (entrada col) :linea (inc i) :forma forma
+                                                       :politica (:politica/id p) :valor x})))]
+                (if (seq fs)
+                  (let [[p empate] (ganadora-fija fs)
+                        x (when p (valor-seguro (get-in p [:politica/cuerpo :valor]) ctx-l))]
+                    (cond
+                      empate (update r :requisitos conj
+                                     {:id (entrada col) :estado :prohibido :conflicto (mapv :politica/id empate)
+                                      :razon (str "Varias políticas fijan " donde " con la misma prioridad")})
+                      (nil? x) r
+                      (and (some? dado) (not (v/igual? dado x)))
+                      (update r :requisitos conj
+                              {:id (entrada col) :estado :prohibido :politica (:politica/id p) :valor x :linea (inc i)
+                               :razon (str (:politica/id p) " fija " donde " en " (pr-str x))})
+                      :else (usar r p :fija x)))
+                  (let [p (when (and (nil? dado) (seq ss)) (ganadora-sugiere estado ss))
+                        x (when p (valor-seguro (get-in p [:politica/cuerpo :valor]) ctx-l))]
+                    (if (some? x) (usar r p :sugiere x) r)))))
+            r
+            (range (count lineas))))))
+     r
+     (distinct (concat (keys fijas) (keys sugeridas))))))
 
 (defn- valores
   "Las entradas con los valores que fijan y sugieren las políticas, y lo que eso
   deja dicho: los valores usados y los rechazos por un valor distinto del fijado."
   [estado ctx ps entradas]
-  (let [aplican (fn [forma] (group-by campo-de (filter #(aplica? ctx %) (de-forma forma ps))))
+  (let [aplican (fn [forma] (group-by campo-de (filter #(and (not (por-linea? %)) (aplica? ctx %)) (de-forma forma ps))))
         fijas   (aplican :fija)
         sugeridas (aplican :sugiere)
         r0      {:entradas entradas :valores [] :requisitos []}
@@ -246,14 +303,16 @@
                               (-> r (assoc-in [:entradas k] x)
                                   (update :valores conj {:campo (entrada k) :forma :fija :politica (:politica/id p) :valor x})))))
                         r0 fijas)]
-    (reduce (fn [r [k grupo]]
-              (let [p (ganadora-sugiere estado grupo)
-                    x (valor-seguro (get-in p [:politica/cuerpo :valor]) ctx)]
-                (if (or (nil? x) (some? (get-in r [:entradas k])) (contains? fijas k))
-                  r
-                  (-> r (assoc-in [:entradas k] x)
-                      (update :valores conj {:campo (entrada k) :forma :sugiere :politica (:politica/id p) :valor x})))))
-            r1 sugeridas)))
+    (valores-por-linea
+     estado ctx ps
+     (reduce (fn [r [k grupo]]
+               (let [p (ganadora-sugiere estado grupo)
+                     x (valor-seguro (get-in p [:politica/cuerpo :valor]) ctx)]
+                 (if (or (nil? x) (some? (get-in r [:entradas k])) (contains? fijas k))
+                   r
+                   (-> r (assoc-in [:entradas k] x)
+                       (update :valores conj {:campo (entrada k) :forma :sugiere :politica (:politica/id p) :valor x})))))
+             r1 sugeridas))))
 
 ;; --- Limita (D34) -----------------------------------------------------------------
 

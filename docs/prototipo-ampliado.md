@@ -64,6 +64,7 @@ Las formas son el cuello de botella: fija aparece en 33 operaciones, limita en 1
 | M24 | Volumen de una empresa pequeña durante un año | — | E26 |
 | M25 | Bitácora de MARCO: toda decisión queda guardada, también los rechazos; el almacén solo acepta escrituras que traen una decisión ejecutada | visión criterio 5, D49, D53 | E27, E23 |
 | M26 | Documentos con varias líneas: una entrega pendiente por línea, despachos parciales por línea, una regla línea por línea | análisis de las construcciones (D95, D99) | E28 |
+| M27 | Lo que una línea toma por defecto lo decide una política, línea por línea | D46, D86 | E29 |
 
 ### La bitácora de MARCO (M25)
 
@@ -123,6 +124,7 @@ Continúan la numeración de `prototipo-minimo.md`. La Empresa A es el comercio 
 | E27 | En B, Ana intenta aprobar su propia solicitud, un usuario sin permiso intenta emitir una orden, una recepción choca con otra (E7) y una orden se ejecuta con confirmación. Además, una prueba intenta escribir un hecho llamando al almacén sin pasar por MARCO. | Las cuatro evaluaciones quedan en la bitácora con su resultado, razones y versiones. La escritura directa falla y no deja nada. La verificación de invariantes pasa, y falla si se borra una entrada de la bitácora o se agrega un hecho sin decisión. |
 | E26 | Dos empresas con un año de operación de un comercio pequeño (del orden de 20.000 hechos cada una). | Se mide el tiempo del resolvedor y de la consulta de estado. Ninguna de las dos crece con los datos de la otra empresa. |
 | E28 | B recibe un pedido de tres productos con precios distintos, lo despacha en dos partes y lo factura. Una línea de otro despacho saca más de lo que hay. | El pedido es un hecho con sus líneas, y cada línea tiene su entrega pendiente; lo que se cobra es uno, por el total. Cada despacho reduce la entrega de cada línea en lo suyo y mueve la existencia de cada producto con su costo, guardado por línea. Una regla se aplica línea por línea. La factura lleva las líneas con su monto. Una referencia inválida dentro de una línea se rechaza. |
+| E29 | B tiene una lista de precios general y una para la Ferretería. Cotiza tres productos, uno con precio negociado; la lista cambia y la Ferretería acepta. Otra empresa obliga al precio de lista. | Cada línea sin precio toma el de su lista: el del cliente si lo hay, si no el general; el negociado se respeta. Al aceptar, el pedido lleva los precios ofrecidos aunque la lista haya cambiado; un pedido nuevo, los de la lista vigente. Una línea sin precio en ninguna lista queda pendiente. Con una "fija", la línea que trae otro precio se rechaza diciendo cuál, y dos "fija" iguales chocan al publicarse. |
 
 ## 6. Etapas
 
@@ -135,6 +137,7 @@ Continúan la numeración de `prototipo-minimo.md`. La Empresa A es el comercio 
 13. **Volumen y cobertura.** Hecha (ver `mediciones.md`). Un año de dos empresas sin que una se haga más lenta con los datos de la otra (E26, D102), y las 74 operaciones del análisis expresadas sin primitivos, verbos ni formas nuevos (sección 7, D103). E25 quedó para la etapa 14.
 14. **Contratos de un agente sin contexto.** Hecha (ver `mediciones.md`). Un agente con solo la notación, el canon de compras y una descripción funcional escribió el canon de ventas; seis correcciones humanas, todas por construcciones que la notación no documentaba (E25, D104). Repetido con la notación corregida: 0 correcciones con Opus, 1 con Sonnet y 1 con Haiku; y E23 medido con 34 frases en tres vueltas (D105).
 15. **Documentos con varias líneas.** Hecha (ver `mediciones.md`). El análisis de las construcciones nuevas mostró que las líneas solo estaban probadas en el asiento. E28, con contratos fuera del canon (`resources/lineas/ventas.edn`): `:cada` como expresión y como efecto (D113) y referencias revisadas dentro de las líneas (D112).
+16. **Precios por línea.** Hecha (ver `mediciones.md`). Una "fija" o una "sugiere" sobre un campo de cada línea, con condición por línea (E29, D114), y la cotización con líneas que se acepta como pedido.
 
 ## 7. Cobertura del análisis
 

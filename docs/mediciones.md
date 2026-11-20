@@ -972,3 +972,47 @@ Unas 32 líneas netas de núcleo para un mecanismo; las tres operaciones, cero. 
 ### Correcciones
 
 - Humanas a los contratos: ninguna. Del agente: una, la política del experimento no tenía `:rige-desde` (la prueba se la agregaba al publicarla y el catálogo la exige).
+
+## Etapa 16: precios por línea y cotización (E29, 2026-11-19)
+
+El análisis de E28 dejó pendiente que una política no alcanzaba un campo dentro de una línea: la lista de precios no podía sugerir el precio de cada línea. E29 lo prueba con una cotización, el caso típico: tres productos, una lista general y otra para la Ferretería (solo P-200), y un precio negociado.
+
+### Qué pasó
+
+| Paso | Resultado |
+|---|---|
+| Notación de la política por línea | `:cada` (la lista), `:campo` (el de la línea), `:valor` y `:donde` opcional, con la línea como `cada` (D114). Validada por el catálogo: la lista existe y la línea tiene el campo. |
+| Sugiere por línea, general y por cliente | La línea 1 toma 50.000 de la general, la 2 toma 7.000 de la del cliente (la más específica, con `:donde`), la 3 conserva el negociado (12.000). `:valores` dice de qué política salió cada uno. |
+| Una línea sin precio en ninguna lista | Queda pendiente y MARCO la pide. |
+| La lista cambia y se acepta la cotización | El pedido lleva los precios ofrecidos (total 344.000), la cotización queda extinguida, y cada línea abre su entrega. Un pedido nuevo toma los de la lista vigente (55.000 para P-100). |
+| Fija por línea | Llena la línea sin precio, acepta la que coincide, y rechaza solo la línea 2 («fija precio-unitario de la línea 2 en …»). |
+| Dos fija iguales | Chocan al publicarse, no al ejecutar (D35). |
+
+**La sorpresa:** escribir «para las líneas cuyo producto tiene precio del cliente» exigía preguntar si un dato está, y `[:!= monto nil]` lanzaba un error de unidades. Comparar con `nil` ya no es un error (D114). La primera versión de la prueba usó la búsqueda en la tabla como condición; una condición de política tiene que ser verdadero o falso, como `:politica/cuando`, así que fue error de la prueba.
+
+### Líneas
+
+| Archivo | Qué hace | Líneas |
+|---|---|---|
+| `src/nc/resolvedor.clj` | Fija y sugiere por línea; más específica también por `:donde` | +70, −11 |
+| `src/nc/esquema.clj` | El cuerpo con `:cada` y su validación | +20, −3 |
+| `src/nc/politicas.clj` | El conflicto distingue el campo de la línea | +6, −3 |
+| `src/nc/valor.clj` | Comparar con `nil` | +6, −2 |
+| `src/nc/expresion.clj` | `:=` y `:!=` leen la igualdad en cada llamada (para las mutaciones) | +2, −2 |
+| `resources/lineas/ventas.edn` | Cotización con líneas y aceptarla como pedido | +60 |
+
+Unas 85 líneas netas de núcleo para un mecanismo (políticas por línea); las dos operaciones nuevas, cero. Ninguna forma de política nueva: `:cada` es la misma palabra de D95 y D113.
+
+### Pruebas y mutaciones
+
+`nc.lineas-test` suma E29 en dos pruebas (precios sugeridos, y fija por línea con su conflicto y su validación). `nc.expresion-test` suma comparar con nada. 105 pruebas con 921 comprobaciones pasan. Cuatro mutaciones nuevas (las políticas por línea no se aplican, la fija por línea acepta otro valor, el `:donde` se ignora, comparar con nada es un error); las 72 se detectan. La última no se detectaba al principio por cómo recarga el script (`knowledge/entorno-jdk.md`).
+
+### Correcciones
+
+- Del agente: dos. La condición `:donde` de la prueba devolvía un monto en vez de verdadero o falso. Y la mutación de `nc.valor` no se veía por una referencia guardada.
+
+### Lo que sigue pendiente
+
+- Que el canon de ventas y compras pase a líneas; con eso, el IVA legal en la factura con líneas.
+- SARA con líneas: un formulario con filas. Hoy una lista de líneas es un campo de texto en EDN.
+- La cotización que vence: el mecanismo (el tiempo como actor, D91) ya está probado con la oferta de proveedor; no se repitió aquí.

@@ -178,7 +178,7 @@ Uno solo para condiciones, conceptos y valores fijados por política (D25). Los 
 
 En un contrato están todas estas referencias. En un concepto, solo sus parámetros y `cada`: un concepto no conoce la empresa, porque ya se evalúa dentro de una. `impl/x` es el resultado del puerto que nombra `:op/impl` (sección 5).
 
-Un símbolo sin barra (`entrada`, `cada`) es el documento completo. Un dato ausente es un dato que falta (P4); uno presente sin valor, como una entrada opcional no entregada, vale nada y no falta. `nil` es un literal válido en cualquier expresión, y en una condición (`:si`, `:y`, `:cuando`) vale como falso.
+Un símbolo sin barra (`entrada`, `cada`) es el documento completo. Un dato ausente es un dato que falta (P4); uno presente sin valor, como una entrada opcional no entregada, vale nada y no falta. `nil` es un literal válido en cualquier expresión, y en una condición (`:si`, `:y`, `:cuando`) vale como falso. Comparar un valor con `nil` no es un error: `[:!= x nil]` pregunta si el dato está (D114). Una condición de política (`:politica/cuando`, `:donde`) tiene que dar verdadero o falso.
 
 Para navegar entre entidades: `[:-> entrada/producto :producto/categoria]`.
 
@@ -400,6 +400,19 @@ No hay umbrales, aprobaciones ni ofertas exigidas. Eso es política (D4). El con
 {:politica/forma :fija
  :politica/cuerpo {:campo :entrada/precio-unitario
                    :valor [:tabla :empresa-b/lista-precios entrada/producto entrada/cliente]}}
+
+;; FIJA o SUGIERE POR LÍNEA (D114): con :cada, el campo es de cada línea de una
+;; entrada que es una lista; la línea se nombra `cada`. :donde, opcional, dice a
+;; qué líneas aplica. Entre varias sugiere, gana la más específica (con :donde).
+{:politica/forma :sugiere
+ :politica/cuerpo {:cada  :entrada/lineas
+                   :campo :precio-unitario
+                   :valor [:tabla :lista-general cada/producto]}}
+{:politica/forma :sugiere
+ :politica/cuerpo {:cada  :entrada/lineas
+                   :campo :precio-unitario
+                   :donde [:!= [:tabla :precios-cliente entrada/cliente cada/producto] nil]
+                   :valor [:tabla :precios-cliente entrada/cliente cada/producto]}}
 
 ;; EXIME (la operación no necesita confirmación humana)
 {:politica/forma :exime

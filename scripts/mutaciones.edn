@@ -269,6 +269,23 @@
   :archivo "src/nc/validar.clj"
   :buscar "(assoc-in dentro [:ent :refs] (get-in estado [:ent :refs]))"
   :poner "dentro"}
+ ;; D114: fija y sugiere por línea.
+ {:nombre "las políticas por línea no se aplican"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(valores-por-linea\n     estado ctx ps\n"
+  :poner "((fn [_ _ _ r] r)\n     estado ctx ps\n"}
+ {:nombre "la fija por línea acepta otro valor"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "(and (some? dado) (not (v/igual? dado x)))\n                      (update r :requisitos conj\n                              {:id (entrada col)"
+  :poner "(and false (some? dado) (not (v/igual? dado x)))\n                      (update r :requisitos conj\n                              {:id (entrada col)"}
+ {:nombre "el donde de una línea se ignora"
+  :archivo "src/nc/resolvedor.clj"
+  :buscar "le-aplica? (fn [p] (let [d"
+  :poner "le-aplica? (fn [p] true) _ (fn [p] (let [d"}
+ {:nombre "comparar con nada es un error"
+  :archivo "src/nc/valor.clj"
+  :buscar "(if (and (some? a) (some? b) (or (valor? a) (valor? b)))"
+  :poner "(if (or (valor? a) (valor? b))"}
  {:nombre "el adaptador del modelo conoce MARCO"
   :archivo "src/nc/sara/claude.clj"
   :buscar "(:import (com.anthropic.client AnthropicClient)"

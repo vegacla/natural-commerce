@@ -1,6 +1,7 @@
 (ns nc.lineas-test
-  "Etapa 15 (E28): documentos con varias líneas. Un pedido de tres productos se
-  despacha en dos partes y se factura. Los contratos están en
+  "Etapas 15 y 16: documentos con varias líneas. E28: un pedido de tres
+  productos se despacha en dos partes y se factura. E29: una cotización con
+  precios de lista por línea, general y por cliente, que se acepta como pedido. Los contratos están en
   resources/lineas/ventas.edn, fuera del canon, como la cobertura (D103)."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [nc.almacen :as alm]
@@ -8,6 +9,7 @@
             [nc.catalogo :as cat]
             [nc.ejecutor :as ej]
             [nc.marco-test :as m]
+            [nc.politicas :as pol]
             [nc.resolvedor :as r]))
 
 (use-fixtures :once m/con-almacen)
@@ -124,3 +126,100 @@
           problemas (cat/problemas (cat/de-empresa (update configuracion :contratos conj contrato)))]
       (is (= 1 (count (filter #(= :lineas/mal (:de %)) problemas))))
       (is (re-find #"cada" (pr-str (filter #(= :lineas/mal (:de %)) problemas)))))))
+
+;; --- E29: precios por línea --------------------------------------------------------
+
+(defn- tabla! [e id version desde filas]
+  (alm/publicar! m/*alm* (:empresa e) :tablas
+                 {:tabla/id id :tabla/version version :tabla/rige-desde desde
+                  :tabla/filas (vec (for [[clave precio] filas] {:clave clave :valor [:monto precio :CLP]}))}))
+
+(defn- precio-por-linea [id forma ops cuerpo]
+  {:politica/id id :politica/version 1 :politica/rige-desde (m/dias-desde-hoy -30) :politica/origen :empresa
+   :politica/aplica-a ops :politica/forma forma
+   :politica/cuerpo (merge {:cada :entrada/lineas :campo :precio-unitario} cuerpo)})
+
+(def ^:private lista-general
+  (precio-por-linea :empresa/lista-general :sugiere #{:lineas/emitir-cotizacion :lineas/registrar-pedido}
+                    '{:valor [:tabla :lista-general cada/producto]}))
+
+(def ^:private lista-del-cliente
+  (precio-por-linea :empresa/lista-del-cliente :sugiere #{:lineas/emitir-cotizacion :lineas/registrar-pedido}
+                    '{:donde [:!= [:tabla :precios-cliente entrada/cliente cada/producto] nil]
+                      :valor [:tabla :precios-cliente entrada/cliente cada/producto]}))
+
+(defn- precios [e]
+  (tabla! e :lista-general 1 (m/dias-desde-hoy -30) {[:P-100] 50000 [:P-200] 8000 [:P-300] 15000})
+  (tabla! e :precios-cliente 1 (m/dias-desde-hoy -30) {[:cliente/ferreteria :P-200] 7000}))
+
+(def ^:private cotizacion
+  {:cliente :cliente/ferreteria
+   :lineas  [{:producto :P-100 :cantidad [:cantidad 5 :un]}
+             {:producto :P-200 :cantidad [:cantidad 10 :un]}
+             {:producto :P-300 :cantidad [:cantidad 2 :un] :precio-unitario [:monto 12000 :CLP]}]})
+
+(deftest e29-precios-por-linea
+  (let [e (empresa!)]
+    (precios e)
+    (testing "las políticas por línea se publican: la del cliente es más específica, no choca"
+      (is (= :publicada (:estado (pol/publicar! e lista-general))))
+      (is (= :publicada (:estado (pol/publicar! e lista-del-cliente)))))
+    (testing "la cotización: cada línea sin precio toma el de su lista, y el negociado se respeta"
+      (let [res (r/resolver e :persona/ana :lineas/emitir-cotizacion (assoc cotizacion :vence (m/dias-desde-hoy 15)))]
+        (is (= :listo (:estado res)) (pr-str (:requisitos res)))
+        (is (= [[:monto 50000 :CLP] [:monto 7000 :CLP] [:monto 12000 :CLP]]
+               (mapv :precio-unitario (get-in res [:objetivo :entradas :lineas]))))
+        (is (= [[1 :empresa/lista-general] [2 :empresa/lista-del-cliente]]
+               (mapv (juxt :linea :politica) (:valores res)))
+            "SARA puede decir de dónde salió cada precio")))
+    (let [vigente (:cotizacion (x! e :lineas/emitir-cotizacion (assoc cotizacion :vence (m/dias-desde-hoy 15))))]
+      (testing "una línea de un producto que no está en ninguna lista queda sin precio, y MARCO lo pide"
+        (alm/cargar-entidades! m/*alm* (:empresa e) [{:entidad/id :P-400 :entidad/tipo :producto :producto/codigo "P-400"
+                                                     :producto/categoria :insumos :producto/unidad :un}])
+        (let [res (r/resolver e :persona/ana :lineas/emitir-cotizacion
+                              (-> cotizacion (assoc :vence (m/dias-desde-hoy 15))
+                                  (update :lineas conj {:producto :P-400 :cantidad [:cantidad 1 :un]})))]
+          (is (= :bloqueado (:estado res)))
+          (is (re-find #"precio-unitario" (str (:problema (m/requisito res :entrada/lineas)))))))
+      (testing "la lista cambia, y aceptar la cotización registra el pedido con los precios ofrecidos"
+        (tabla! e :lista-general 2 (m/dias-desde-hoy -1) {[:P-100] 55000 [:P-200] 9000 [:P-300] 16000})
+        (let [{:keys [pedido]} (x! e :lineas/aceptar-cotizacion {:cotizacion vigente})
+              p (alm/leer m/*alm* (:empresa e) :hechos pedido)]
+          (is (= [[:monto 50000 :CLP] [:monto 7000 :CLP] [:monto 12000 :CLP]]
+                 (mapv :precio-unitario (get-in p [:hecho/datos :lineas]))))
+          (is (= :extinguido (:compromiso/estado (compromiso e vigente))))
+          (is (= {:monto [:monto 344000 :CLP]}
+                 (:compromiso/saldo (first (alm/buscar m/*alm* (:empresa e) :compromisos
+                                                       {:compromiso/tipo :lineas/por-cobrar :compromiso/origen pedido})))))
+          (is (= 3 (count (alm/buscar m/*alm* (:empresa e) :compromisos
+                                      {:compromiso/tipo :lineas/entrega-pendiente :compromiso/origen pedido}))))))
+      (testing "un pedido nuevo toma ya los precios de la lista vigente"
+        (let [res (r/resolver e :persona/ana :lineas/registrar-pedido (dissoc cotizacion :vence))]
+          (is (= [[:monto 55000 :CLP] [:monto 7000 :CLP] [:monto 12000 :CLP]]
+                 (mapv :precio-unitario (get-in res [:objetivo :entradas :lineas]))))))
+      (is (= [] (bit/verificar m/*alm* (:empresa e)))))))
+
+(deftest e29-fija-por-linea
+  (let [e (empresa!)
+        fija (precio-por-linea :empresa/precio-de-lista :fija :lineas/registrar-pedido
+                               '{:valor [:tabla :lista-general cada/producto]})]
+    (precios e)
+    (is (= :publicada (:estado (pol/publicar! e fija))))
+    (testing "la fija llena la línea sin precio y rechaza solo la que trae otro, diciendo cuál"
+      (let [res (r/resolver e :persona/ana :lineas/registrar-pedido
+                            {:cliente :cliente/ferreteria
+                             :lineas  [{:producto :P-100 :cantidad [:cantidad 5 :un]}
+                                       {:producto :P-200 :cantidad [:cantidad 10 :un] :precio-unitario [:monto 7500 :CLP]}
+                                       {:producto :P-300 :cantidad [:cantidad 2 :un] :precio-unitario [:monto 15000 :CLP]}]})
+            rechazos (filter #(= :prohibido (:estado %)) (:requisitos res))]
+        (is (= :prohibido (:estado res)))
+        (is (= [2] (map :linea rechazos)))
+        (is (re-find #"línea 2" (str (:razon (first rechazos)))))
+        (is (= [1 3] (map :linea (:valores res))) "la 1 se llenó y la 3 coincide")))
+    (testing "otra fija del mismo campo de la línea, con la misma prioridad, choca al publicarse"
+      (let [otra (precio-por-linea :empresa/otro-precio :fija :lineas/registrar-pedido
+                                   '{:valor [:tabla :precios-cliente entrada/cliente cada/producto]})]
+        (is (= :conflicto (:estado (pol/publicar! e otra))))))
+    (testing "una fija por línea sobre un campo que la línea no tiene no es válida"
+      (is (seq (cat/problemas (cat/de-empresa (update configuracion :politicas conj
+                                                      (assoc-in fija [:politica/cuerpo :campo] :precio)))))))))

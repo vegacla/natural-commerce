@@ -15,7 +15,10 @@
 
 (defn- se-cruzan? [p q] (boolean (seq (set/intersection (ops-de p) (ops-de q)))))
 
-(defn- campo [p] (get-in p [:politica/cuerpo :campo]))
+(defn- campo
+  "El campo que fija una política: el de la entrada, o el de cada línea de una
+  lista (D114)."
+  [p] ((juxt :cada :campo) (:politica/cuerpo p)))
 
 (defn- legal? [p] (= :legal (:politica/origen p)))
 
@@ -28,11 +31,11 @@
     (cond
       (legal? p) nil
       (legal? q) {:conflicto :contradice-legal :con (:politica/id q)
-                  :razon (str "La política legal " (:politica/id q) " ya fija " (campo p))}
+                  :razon (str "La política legal " (:politica/id q) " ya fija " (pr-str (campo p)))}
       ;; Sin prioridad, una política cuenta como 0.
       (not= (or (:politica/prioridad p) 0) (or (:politica/prioridad q) 0)) nil
       :else {:conflicto :fija-dos-veces :con (:politica/id q)
-             :razon (str (:politica/id q) " ya fija " (campo p) "; distinga la prioridad o ajuste las condiciones")})))
+             :razon (str (:politica/id q) " ya fija " (pr-str (campo p)) "; distinga la prioridad o ajuste las condiciones")})))
 
 (defn- exige-contra-prohibe
   "Un \"exige\" de un hecho cuya única operación está prohibida siempre (sin

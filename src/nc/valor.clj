@@ -84,7 +84,11 @@
     (or (valor? a) (valor? b))  (error! :comparar a b)
     :else                       (compare a b)))
 
-(defn igual? [a b]
-  (if (or (valor? a) (valor? b))
+(defn igual?
+  "Si dos datos son iguales. Un valor con unidad se compara con otro de la misma
+  unidad; con nada (nil) solo es distinto, sin error: así `[:!= x nil]` pregunta
+  si el dato está (D114)."
+  [a b]
+  (if (and (some? a) (some? b) (or (valor? a) (valor? b)))
     (zero? (comparar a b))
     (= a b)))

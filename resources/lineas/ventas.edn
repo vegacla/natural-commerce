@@ -1,4 +1,4 @@
-;; Ventas con varias líneas (etapa 15, E28). Experimento, no canon: lo carga solo
+;; Ventas con varias líneas (etapas 15 y 16, E28 y E29). Experimento, no canon: lo carga solo
 ;; nc.lineas-test, como la cobertura (D103). Mide si un documento con varias
 ;; líneas (pedido, despacho, factura) se expresa con la notación.
 ;;
@@ -32,6 +32,17 @@
                          :suma  {:cantidad [:* -1 cada/cantidad]
                                  :costo    [:* -1 cada/cantidad cada/costo-unitario]}}]}
 
+  ;; Una cotización es una oferta al cliente, línea por línea (etapa 16, E29).
+  {:tipo-hecho/id      :lineas/cotizacion
+   :tipo-hecho/datos   [:map
+                        [:cliente [:ref :cliente]]
+                        [:lineas [:vector [:map
+                                           [:producto [:ref :producto]]
+                                           [:cantidad :cantidad]
+                                           [:precio-unitario :monto]]]]
+                        [:vence :fecha]]
+   :tipo-hecho/regimen :solo-agregar}
+
   {:tipo-hecho/id      :lineas/factura
    :tipo-hecho/datos   [:map
                         [:pedido [:ref :lineas/pedido]]
@@ -46,7 +57,58 @@
    :tipo-hecho/regimen :solo-agregar}]
 
  :contratos
- [{:op/id        :lineas/registrar-pedido
+ [;; Lo que la empresa ofrece queda latente hasta que el cliente acepta o vence.
+  ;; El precio de cada línea lo puede llenar una política (D114).
+  {:op/id        :lineas/emitir-cotizacion
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map
+                  [:cliente [:ref :cliente]]
+                  [:lineas [:vector {:min 1} [:map
+                                              [:producto [:ref :producto]]
+                                              [:cantidad :cantidad]
+                                              [:precio-unitario :monto]]]]
+                  [:vence :fecha]]
+   :op/salidas   {:cotizacion vigente/id}
+   :op/efectos
+   [[:registra-hecho :lineas/cotizacion entrada :como cotizacion]
+    [:abre-compromiso {:tipo     :lineas/cotizacion-vigente
+                       :deudor   empresa
+                       :acreedor entrada/cliente
+                       :estado   :latente
+                       :vence    entrada/vence
+                       :origen   cotizacion/id
+                       :objeto   {:monto [:suma [:* cada/cantidad cada/precio-unitario] entrada/lineas]}}
+     :como vigente]]}
+
+  ;; Aceptarla registra el pedido con las líneas y los precios de la cotización:
+  ;; lo negociado no lo cambia la lista de precios de hoy.
+  {:op/id        :lineas/aceptar-cotizacion
+   :op/capacidad :ventas
+   :op/tipo      :efecto
+   :op/entradas  [:map [:cotizacion [:ref :lineas/cotizacion-vigente]]]
+   :op/salidas   {:pedido pedido/id}
+   :op/efectos
+   [[:registra-hecho :lineas/pedido
+     {:cliente [:-> entrada/cotizacion :compromiso/acreedor]
+      :lineas  [:-> entrada/cotizacion :compromiso/origen :hecho/datos :lineas]}
+     :como pedido]
+    [:extingue-compromiso entrada/cotizacion :aceptada]
+    [:cada [:-> entrada/cotizacion :compromiso/origen :hecho/datos :lineas]
+     [:abre-compromiso {:tipo     :lineas/entrega-pendiente
+                        :deudor   empresa
+                        :acreedor [:-> entrada/cotizacion :compromiso/acreedor]
+                        :origen   pedido/id
+                        :objeto   {:producto cada/producto :cantidad cada/cantidad}}]]
+    [:abre-compromiso {:tipo     :lineas/por-cobrar
+                       :deudor   [:-> entrada/cotizacion :compromiso/acreedor]
+                       :acreedor empresa
+                       :estado   :latente
+                       :origen   pedido/id
+                       :objeto   {:monto [:suma [:* cada/cantidad cada/precio-unitario]
+                                                [:-> entrada/cotizacion :compromiso/origen :hecho/datos :lineas]]}}]]}
+
+  {:op/id        :lineas/registrar-pedido
    :op/capacidad :ventas
    :op/tipo      :efecto
    :op/entradas  [:map

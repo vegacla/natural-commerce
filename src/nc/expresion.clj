@@ -44,8 +44,8 @@
    :*          {:min 2 :f (fn [& xs] (reduce v/multiplicar xs))}
    :/          {:min 2 :max 2 :f v/dividir}
    :redondear  {:min 1 :max 2 :f v/redondear}
-   :=          {:min 2 :max 2 :f v/igual?}
-   :!=         {:min 2 :max 2 :f (complement v/igual?)}
+   :=          {:min 2 :max 2 :f (fn [a b] (v/igual? a b))}
+   :!=         {:min 2 :max 2 :f (fn [a b] (not (v/igual? a b)))}
    :>          {:min 2 :max 2 :f (ordenado pos?)}
    :>=         {:min 2 :max 2 :f (ordenado (complement neg?))}
    :<          {:min 2 :max 2 :f (ordenado neg?)}

@@ -134,3 +134,9 @@
 (deftest vocabulario-cerrado
   (is (= :operacion-desconocida (error-de #(e/evaluar [:potencia 2 3] {}))))
   (is (= :forma-invalida (error-de #(e/evaluar [1 2 3] {})))))
+
+(deftest comparar-con-nada
+  (testing "un valor con unidad comparado con nada no es un error: [:!= x nil] pregunta si el dato está (D114)"
+    (is (true? (e/evaluar '[:!= [:monto 7000 :CLP] nil] {:refs {}})))
+    (is (false? (e/evaluar '[:= [:monto 7000 :CLP] nil] {:refs {}})))
+    (is (true? (e/evaluar '[:= nil nil] {:refs {}})))))
