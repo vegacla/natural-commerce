@@ -23,7 +23,7 @@
   él detecta cuesta la suite entera."
   '[nc.resguardos-test nc.catalogo-test nc.expresion-test nc.maestros-test nc.extension-test
     nc.separacion-test nc.almacen-test nc.planificacion-test nc.concurrencia-test nc.sara-test
-    nc.bitacora-test nc.formas-test nc.verbos-test nc.legal-test nc.composicion-test nc.lenguaje-test nc.marco-test nc.respaldo-test])
+    nc.bitacora-test nc.formas-test nc.verbos-test nc.legal-test nc.composicion-test nc.lenguaje-test nc.web-test nc.marco-test nc.respaldo-test])
 
 (def pruebas
   "Todos los archivos de prueba de test/nc: los conocidos en su orden, y uno

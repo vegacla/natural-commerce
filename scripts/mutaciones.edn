@@ -241,6 +241,15 @@
   :archivo "src/nc/almacen.clj"
   :buscar "(if-let [[campo valor] (por-indice tabla filtro)]"
   :poner "(if-let [[campo valor] nil]"}
+ ;; D110: el chat del cliente web confirma solo con el botón.
+ {:nombre "el chat confirma al escribir"
+  :archivo "src/nc/sara/web.clj"
+  :buscar "(guardar! ctx params (con-respuesta c (sl/turno! (de-la-empresa ctx params) (clave actor) (:modelo ctx) (:conv c) texto)"
+  :poner "(guardar! ctx params (con-respuesta c (sl/confirmar! (de-la-empresa ctx params) (clave actor) (sl/turno! (de-la-empresa ctx params) (clave actor) (:modelo ctx) (:conv c) texto))"}
+ {:nombre "el id de lo que se crea parece una referencia"
+  :archivo "src/nc/sara/lenguaje.clj"
+  :buscar "(if-let [t (nuevos k)]"
+  :poner "(if-let [t nil]"}
  {:nombre "el adaptador del modelo conoce MARCO"
   :archivo "src/nc/sara/claude.clj"
   :buscar "(:import (com.anthropic.client AnthropicClient)"

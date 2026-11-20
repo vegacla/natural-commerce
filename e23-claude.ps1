@@ -20,7 +20,10 @@ if (-not $clave) { throw "No hay clave: ponla en .env (ANTHROPIC_API_KEY=...) o 
 $anterior = $env:ANTHROPIC_API_KEY
 $env:ANTHROPIC_API_KEY = $clave
 try {
-    & (Join-Path $PSScriptRoot 'pruebas.ps1') -n nc.lenguaje-claude-test
+    # Sin argumentos, todo nc.lenguaje-claude-test; con argumentos, se pasan al runner
+    # (p. ej. -v nc.lenguaje-claude-test/e23-conversacion-larga).
+    $pruebas = if ($args.Count -gt 0) { $args } else { @('-n', 'nc.lenguaje-claude-test') }
+    & (Join-Path $PSScriptRoot 'pruebas.ps1') @pruebas
 } finally {
     $env:ANTHROPIC_API_KEY = $anterior
     $clave = $null

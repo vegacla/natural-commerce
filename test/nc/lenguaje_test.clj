@@ -270,3 +270,14 @@
             (is (= :marco (:quien (first (filter #(= :permiso (:id %)) (:requisitos res))))))))))
     (testing "una reserva con condición no la oculta: a veces la hace una persona"
       (is (ofrece? (m/empresa! {:politicas [(reservar-a-marco op [:= 1 1])]}))))))
+
+;; --- D110: el identificador de lo que se crea ----------------------------------------
+
+(deftest el-identificador-de-lo-que-se-crea-se-propone
+  (testing "Claude no daba de alta un cliente: el id es nuevo, no una referencia, y
+  el prompt prohibía inventar identificadores. La herramienta dice cuál es nuevo."
+    (let [hs (sl/herramientas (m/empresa! {}))
+          campo (fn [h c] (some #(when (= c (:nombre %)) %) (:campos (first (filter #(= h (:nombre %)) hs)))))]
+      (is (re-find #"identificador nuevo del cliente" (:descripcion (campo "ventas__alta-cliente" "id"))))
+      (is (not (re-find #"identificador nuevo" (:descripcion (campo "ventas__modificar-cliente" "cliente"))))
+          "una referencia a un cliente que existe no es nueva"))))

@@ -188,3 +188,78 @@
       (doseq [[frase rs] (group-by :frase todas)
               :when (< 1 (count (distinct (map :elegida rs))))]
         (println "   Varía entre vueltas:" (pr-str frase) (pr-str (map :elegida rs)))))))
+
+;; --- Una conversación larga (D110) --------------------------------------------------
+
+(def conversacion-larga
+  "Frase → operación esperada (o :texto). Una compra y una venta completas, y
+  frases que se apoyan en lo dicho antes («esa orden», «despáchalas»)."
+  [["Necesito comprar 20 unidades del P-100"                          :compras/registrar-solicitud]
+   ["Emite la orden a Acme por esas 20, a 30.000 pesos cada una"      :compras/emitir-orden]
+   ["Llegaron 12 de esa orden a la bodega central"                    :compras/registrar-recepcion]
+   ["¿Cuánto falta por recibir de esa orden?"                         :compras/consultar-estado]
+   ["Llegaron las 8 que faltaban"                                     :compras/registrar-recepcion]
+   ["Acme mandó la factura por 600.000 pesos, vence en 30 días"       :compras/registrar-factura]
+   ["Págale a Acme los 600.000"                                       :compras/registrar-pago]
+   ["Da de alta al cliente Ferretería Sur con un cupo de 5 millones"  :ventas/alta-cliente]
+   ["La Ferretería pide 5 unidades del P-100 a 50.000 cada una"       :ventas/registrar-pedido]
+   ["Despáchale ese pedido desde la bodega central"                   :ventas/despachar]
+   ["Factúrale el pedido por 250.000 pesos"                           :ventas/emitir-factura]
+   ["La Ferretería pagó los 250.000"                                  :ventas/registrar-cobro]
+   ["Vendí en el mesón 2 P-100 a 55.000 pesos cada uno"               :ventas/venta-mostrador]
+   ["¿Cómo va la compra a Acme?"                                      :compras/consultar-estado]
+   ["Necesito 10 más del P-100"                                       :compras/registrar-solicitud]
+   ["Ordénaselas a Beta a 29.000 cada una"                            :compras/emitir-orden]
+   ["Llegaron las 10 de Beta a la central"                            :compras/registrar-recepcion]
+   ["Súbele el cupo a la Ferretería a 8 millones"                     :ventas/modificar-cliente]
+   ["La Ferretería pide 3 más a 50.000"                               :ventas/registrar-pedido]
+   ["Despáchalas desde la central"                                    :ventas/despachar]
+   ["Factúralas por 150.000"                                          :ventas/emitir-factura]
+   ["Anula esa última factura"                                        :ventas/emitir-nota-credito]
+   ["Cobra a la ferre 100 lucas"                                      :ventas/registrar-cobro]
+   ["Gracias, eso es todo por hoy"                                    :texto]])
+
+(deftest e23-conversacion-larga
+  (if-not (and (con-clave?) (System/getenv "NC_E23_LARGA"))
+    (do (println "nc.lenguaje-claude-test: sin ANTHROPIC_API_KEY y NC_E23_LARGA, se omite la conversación larga.")
+        (is true))
+    (let [a      (m/empresa! {})
+          modelo (modelo)
+          ;; Como una persona que usa el chat: confirma lo que SARA deja por confirmar
+          ;; y, ante una pregunta, elige la última opción y confirma.
+          paso   (fn [c]
+                   (let [r (:respuesta c)]
+                     (cond
+                       (= :pregunta (:estado r))
+                       (let [c (sl/elegir! a :persona/ana c (:campo r) (first (last (:opciones r))))]
+                         (if (= :por-confirmar (get-in c [:respuesta :estado])) (sl/confirmar! a :persona/ana c) c))
+                       (= :por-confirmar (:estado r))
+                       (sl/confirmar! a :persona/ana c)
+                       :else c)))
+          [conv filas]
+          (reduce (fn [[c filas] [frase esperado]]
+                    (let [c1 (sl/turno! a :persona/ana modelo c frase)
+                          r  (:respuesta c1)
+                          c2 (paso c1)]
+                      [c2 (conj filas {:frase frase :esperado esperado :elegida (or (:operacion r) :texto)
+                                       :estado (:estado r) :final (get-in c2 [:respuesta :estado])
+                                       :entrada (:entrada (peek (:uso c1))) :enviados (count (sl/recortar (:mensajes c1)))
+                                       :texto (:texto r) :texto-final (get-in c2 [:respuesta :texto])})]))
+                  [(sl/conversacion) []]
+                  conversacion-larga)]
+      (println "E23, conversación larga con Claude:" (count filas) "frases; el modelo recibe a lo más" sl/mensajes-maximos "mensajes")
+      (doseq [[i {:keys [frase esperado elegida estado final entrada enviados texto texto-final]}] (map-indexed vector filas)]
+        (println (format "  %2d %-4s %-62s %-38s %-14s %-14s %5d tok, %2d msj%s"
+                         (inc i) (if (= esperado elegida) "ok" "MAL") frase (str elegida) (name estado) (name final)
+                         entrada enviados
+                         (if (#{:ejecutado :consultado} final) ""
+                             (let [t (if (= :texto estado) texto texto-final)] (str "  «" (subs t 0 (min 160 (count t))) "»"))))))
+      (println "   Bien:" (count (filter #(= (:esperado %) (:elegida %)) filas)) "de" (count filas)
+               "· tokens de entrada: total" (reduce + (map :entrada filas))
+               "· primera" (:entrada (first filas)) "· última" (:entrada (peek filas)))
+      (testing "todo pasó por MARCO: la bitácora cumple sus invariantes, y cada ejecución tiene confirmación"
+        (is (= [] (bit/verificar m/*alm* (:empresa a))))
+        (is (every? #(#{:confirmada :eximida} (:decision/confirmacion %))
+                    (filter #(= :ejecutado (:decision/resultado %))
+                            (bit/decisiones m/*alm* (:empresa a) {:decision/origen :sara})))))
+      (is (<= (apply max (map :enviados filas)) sl/mensajes-maximos)))))

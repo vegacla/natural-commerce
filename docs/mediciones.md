@@ -880,3 +880,37 @@ Dos resguardos nuevos: el índice dice lo mismo que recorrer la tabla, en un esc
 ### Correcciones
 
 - Del agente: tres. La primera medición usaba el número de días de `nc.volumen-test` (3, no los pedidos). Una carga de 20 días por empresa se lanzó estimando 5 minutos, pasó de 13 y se detuvo. Y las empresas de carga no compraban antes de vender, así que la política de D107 las detenía.
+
+## SARA en el cliente web: chat y conversación larga (D110, 2026-11-19)
+
+### Líneas
+
+| Archivo | Qué hace | Líneas |
+|---|---|---|
+| `src/nc/sara/web.clj` | Chat: conversación por persona y empresa, botones de confirmar y elegir, enlace al formulario, tokens gastados; `pagina-de` para probar sin servidor | +147, −11 |
+| `src/nc/sara/lenguaje.clj` | Recorte a los últimos 20 mensajes, tokens por turno, identificador nuevo de lo que se crea | +32, −5 |
+| `src/nc/sara/claude.clj` | Devuelve los tokens de cada llamada | +12, −9 |
+
+El núcleo de MARCO no cambió, y ninguna línea es propia de una operación: lo que el chat muestra sale de la respuesta de MARCO, y el identificador nuevo se lee del contrato.
+
+### Conversación larga con Claude Haiku 5.5
+
+`$env:NC_E23_LARGA='1'; .\e23-claude.ps1 -v nc.lenguaje-claude-test/e23-conversacion-larga`: 24 frases en una sola conversación, una compra y una venta completas, con frases que se apoyan en lo anterior («esa orden», «despáchalas»). La prueba confirma lo que SARA deja por confirmar y, ante una pregunta, elige la última opción. Tres corridas (72 llamadas):
+
+| Corrida | Operación bien elegida | Terminó ejecutada o consultada | Qué la detuvo |
+|---|---|---|---|
+| 1. La prueba solo confirmaba lo reversible | 24 de 24 | 4 | Emitir una orden es irreversible (extingue compromisos) y no se confirmaba: sin orden, todo lo de después quedó bloqueado. Error de la prueba. |
+| 2. Confirma todo | 24 de 24 | 11 | «Da de alta al cliente Ferretería Sur»: falta el id. Sin cliente, toda la venta quedó bloqueada. |
+| 3. Con el identificador nuevo (D110) | 24 de 24 | 19 | Facturar sin vencimiento (nadie lo dijo; MARCO lo pide) y anular una factura que por eso no existe. |
+
+- **Tokens de entrada por llamada:** 5.828 en la primera, unos 7.900 desde la décima y estables. Las herramientas (las 25 operaciones con sus campos) son la mayor parte; el recorte evita que la conversación sume. Total de la tercera corrida: 171.719 de entrada.
+- **El recorte no se notó.** Desde el turno 10 el modelo recibe 18 a 20 mensajes, y siguió entendiendo «esa orden», «despáchalas» y «factúralas».
+- **Un hallazgo de diseño, no del modelo:** el prompt prohibía inventar identificadores y eso incluía el de un cliente nuevo. La regla ahora sale del contrato: solo el identificador de lo que se crea puede proponerse.
+
+### Pruebas y mutaciones
+
+`nc.web-test`: el chat con un modelo guionado (escribir, confirmar con el botón, elegir una opción ofrecida, un valor no ofrecido no cuenta, enlace al formulario, conversación por persona, sin modelo) y el recorte con 30 turnos. 98 pruebas con 842 comprobaciones pasan. Dos mutaciones nuevas (el chat confirma al escribir; el id de lo que se crea parece una referencia): las 64 se detectan.
+
+### Correcciones
+
+- Del agente: la primera corrida larga confirmaba solo lo reversible, copiado de la conversación corta de E23, y no representaba a una persona que usa el chat.

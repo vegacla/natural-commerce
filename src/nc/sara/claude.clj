@@ -5,7 +5,8 @@
 
   Usa Claude Haiku 5.5: elegir una operación y llenar sus entradas no necesita
   un modelo mayor, y lo que importa lo decide MARCO. Si el modelo rechaza la
-  petición, SARA lo dice como texto."
+  petición, SARA lo dice como texto. Cada respuesta trae los tokens que gastó
+  (`:uso`), para medir el costo de una conversación."
   (:import (com.anthropic.client AnthropicClient)
            (com.anthropic.client.okhttp AnthropicOkHttpClient)
            (com.anthropic.core JsonValue)
@@ -43,20 +44,22 @@
     (.build b)))
 
 (defn- respuesta [^Message m]
-  (let [bloques (.content m)
-        uso     (some (fn [^ContentBlock b] (.orElse (.toolUse b) nil)) bloques)
+  (let [uso     {:entrada (.inputTokens (.usage m)) :salida (.outputTokens (.usage m))}
+        bloques (.content m)
+        llamada (some (fn [^ContentBlock b] (.orElse (.toolUse b) nil)) bloques)
         texto   (apply str (keep (fn [^ContentBlock b] (some-> (.orElse (.text b) nil) (.text))) bloques))]
     (cond
       (= "refusal" (str (.orElse (.stopReason m) nil)))
-      {:texto "No puedo ayudar con eso." :rechazo true}
+      {:texto "No puedo ayudar con eso." :rechazo true :uso uso}
 
-      uso
-      {:llamada {:herramienta (.name ^ToolUseBlock uso)
+      llamada
+      {:llamada {:herramienta (.name ^ToolUseBlock llamada)
                  :entradas    (into {} (map (fn [[k v]] [(keyword k) (str v)]))
-                                    (.convert (._input ^ToolUseBlock uso) Map))}
-       :texto   texto}
+                                    (.convert (._input ^ToolUseBlock llamada) Map))}
+       :texto   texto
+       :uso     uso}
 
-      :else {:texto texto})))
+      :else {:texto texto :uso uso})))
 
 (defn modelo
   "Una función de modelo para nc.sara.lenguaje. Sin cliente, lo arma con las
