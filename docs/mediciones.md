@@ -341,7 +341,7 @@ Ninguno nuevo. La decisión se escribe en la misma transacción que los cambios 
 
 ### Mutaciones
 
-`scripts/mutaciones.py` suma siete mutaciones (escribir sin decisión, rechazo sin bitácora, ejecutar sin confirmación, `aplicar!` sin revisar el plan, operación fuera del plan, entidad desactivada usable, otro módulo que llama a `escribir!`). Las 13 mutaciones del script son detectadas.
+`scripts/mutaciones.py` (hoy `scripts/mutaciones.clj`, con las mutaciones en `scripts/mutaciones.edn`) suma siete mutaciones (escribir sin decisión, rechazo sin bitácora, ejecutar sin confirmación, `aplicar!` sin revisar el plan, operación fuera del plan, entidad desactivada usable, otro módulo que llama a `escribir!`). Las 13 mutaciones del script son detectadas.
 
 ### Hallazgos de la etapa
 
@@ -389,7 +389,7 @@ Ninguno. Las tablas son otra tabla versionada, como las políticas.
 
 ### Mutaciones
 
-`scripts/mutaciones.py` suma ocho mutaciones (sugiere no llena, fija acepta otro valor, limita no prohíbe, inicia no se dispara, MARCO se confirma a sí mismo, dos fija no chocan, la empresa edita una legal, la combinación de la empresa se ignora). Las 21 del script son detectadas.
+`scripts/mutaciones.py` (hoy `scripts/mutaciones.clj`, con las mutaciones en `scripts/mutaciones.edn`) suma ocho mutaciones (sugiere no llena, fija acepta otro valor, limita no prohíbe, inicia no se dispara, MARCO se confirma a sí mismo, dos fija no chocan, la empresa edita una legal, la combinación de la empresa se ignora). Las 21 del script son detectadas.
 
 La primera corrida no terminó: el sistema la detuvo por falta de memoria del equipo, con una mutación aplicada que se restauró a mano. La suite usa como máximo unos 700 MB; la presión venía del resto del equipo. Desde entonces la JVM de pruebas tiene tope (`-Xmx768m`, pico medido 545 MB) y las mutaciones corren en una sola JVM (`deps -M:mutaciones`, `scripts/mutaciones.clj` y `.edn`): unos 100 segundos en vez de unos 16 minutos.
 

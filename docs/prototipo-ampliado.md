@@ -71,7 +71,7 @@ Hoy queda rastro de lo ejecutado (actor y versiones de las reglas en cada hecho,
 Se propone:
 
 1. **Bitácora.** Cada evaluación de `ejecutar!` deja un registro inmutable por empresa, en una tabla propia (no es un hecho del negocio): actor, operación, entradas, origen (persona, SARA con LLM, MARCO por iniciativa propia), resultado (ejecutado, prohibido, bloqueado, por confirmar, conflicto), razones, versiones de las políticas, quién confirmó o qué política eximió, y los hechos escritos si se ejecutó.
-2. **Garantía estructural.** El almacén solo acepta una escritura de hechos, compromisos y saldos que traiga una decisión ejecutada, y escribe la bitácora en la misma transacción. Una prueba verifica que solo el ejecutor llama a `escribir!`, y las mutaciones (`scripts/mutaciones.py`) confirman que la prueba lo detecta.
+2. **Garantía estructural.** El almacén solo acepta una escritura de hechos, compromisos y saldos que traiga una decisión ejecutada, y escribe la bitácora en la misma transacción. Una prueba verifica que solo el ejecutor llama a `escribir!`, y las mutaciones (`scripts/mutaciones.edn`, que corre `deps -M:mutaciones`) confirman que la prueba lo detecta.
 3. **Invariantes.** Una verificación que recorre la base de una empresa: todo hecho tiene la decisión ejecutada que lo produjo; toda decisión ejecutada tiene sus hechos; ninguna decisión ejecutada tenía requisitos pendientes ni le faltaba confirmación. Corre al final de cada escenario.
 
 Registrada como D82.
